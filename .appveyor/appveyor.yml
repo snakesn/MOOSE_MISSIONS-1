@@ -39,13 +39,13 @@ build_script:
       dir 
       foreach( $file in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter Moose.lua -Recurse)  
       { 
-        echo $file 
+        Write-Host "file : $file" 
         Copy-Item -Path c:\Projects\Moose_Include\Moose_Include_Static\Moose.lua -Destination $file
       } 
       foreach( $dir in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter _unpacked -Recurse -Directory) 
       { 
-        echo $dir 
-        printf "7z a -r -y -tzip \"$dir\\..\" *" 
+        Write-Host "dir : $dir" 
+        Write-Host "7z a -r -y -tzip \"$dir\\..\" *" 
       } 
       #cd ..
       #echo "Commit to GITHUB" 
