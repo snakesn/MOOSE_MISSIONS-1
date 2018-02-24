@@ -50,7 +50,7 @@ build_script:
         Write-Host "miz : $miz"  
         7z a -r -y -tzip "$miz" "$dir_packed/*" 
         #Remove-Item "$dir_packed" -Force -Recurse
-        CopyItem "$miz" -Destination .
+        Copy-Item "$miz" -Destination .
       } 
       echo "Commit to GITHUB" 
       git config --global credential.helper store  
