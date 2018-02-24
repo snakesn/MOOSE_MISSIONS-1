@@ -45,7 +45,7 @@ build_script:
       foreach( $dir in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter _unpacked -Recurse -Directory) 
       { 
         echo $dir 
-        printf "7z a -r -y -tzip \"$dir\\.." *" 
+        printf "7z a -r -y -tzip \"$dir\\..\" *" 
       } 
       #cd ..
       #echo "Commit to GITHUB" 
