@@ -35,20 +35,20 @@ build_script:
       git checkout master 2>&1
       git clone -q --depth=1 https://github.com/FlightControl-Master/MOOSE_INCLUDE.git c:\Projects\Moose_Include 
       git clone -q --depth=1 https://github.com/FlightControl-Master/MOOSE_MISSIONS_UNPACKED.git c:\Projects\Moose_Missions_Unpacked 
-      dir c:\Projects
-      dir
-      foreach( $file in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter Moose.lua -Recurse) 
+      dir c:\Projects 
+      dir 
+      foreach( $file in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter Moose.lua -Recurse)  
       { 
-        echo $file
+        echo $file 
 	    Copy-Item -Path c:\Projects\Moose_Include\Moose_Include_Static\Moose.lua -Destination $file
-	  }
+	  } 
       foreach( $dir in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter _unpacked -Recurse -Directory) 
       { 
-        echo $dir
-        printf "7z a -r -y -tzip \"$dir\\.." *"
-	  }
+        echo $dir 
+        printf "7z a -r -y -tzip \"$dir\\.." *" 
+	  } 
       #cd ..
-      #echo "Commit to GITHUB"
+      #echo "Commit to GITHUB" 
       #git config --global credential.helper store  
       #Add-Content "$env:USERPROFILE\.git-credentials" "https://$($env:access_token_documentation):x-oauth-basic@github.com`n" 
       #git config --global user.email "sven.van.de.velde@telenet.be" 
