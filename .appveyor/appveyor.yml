@@ -45,7 +45,7 @@ build_script:
       foreach( $dir in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter _unpacked -Recurse -Directory) 
       { 
         Write-Host "dir : $dir"
-        $miz = $dir.TrimEnd( "\_unpacked" ) + ".miz"
+        $miz = $dir.ToString().TrimEnd( "\_unpacked" ) + ".miz"
         Write-Host "miz : $miz"  
         7z a -r -y -tzip "$miz" "$dir/*" 
       } 
