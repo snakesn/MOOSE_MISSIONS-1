@@ -49,7 +49,6 @@ build_script:
         $miz = $dir_packed.ToString().TrimEnd( "\_unpacked" ) + ".miz"
         Write-Host "miz : $miz"  
         7z a -r -y -tzip "$miz" "$dir_packed/*" 
-        #Remove-Item "$dir_packed" -Force -Recurse
         Copy-Item "$miz" -Destination .
       } 
       echo "Commit to GITHUB" 
