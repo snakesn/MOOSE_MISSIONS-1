@@ -37,7 +37,7 @@ build_script:
       git clone -q --depth=1 https://github.com/FlightControl-Master/MOOSE_MISSIONS_UNPACKED.git c:\Projects\Moose_Missions_Unpacked 
       dir c:\Projects 
       dir 
-      foreach( $file in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter Moose.lua -Recurse)  
+      foreach( $file in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter Moose.lua -Recurse | % { $_.FullName } )  
       { 
         Write-Host "file : $file" 
         Copy-Item -Path c:\Projects\Moose_Include\Moose_Include_Static\Moose.lua -Destination $file
