@@ -31,7 +31,7 @@ cache:
 
 
 build_script:
-  - ps: | 
+  - ps: |
       git checkout master 2>&1
       git clone -q --depth=1 https://github.com/FlightControl-Master/MOOSE_INCLUDE.git c:\Projects\Moose_Include 
       git clone -q --depth=1 https://github.com/FlightControl-Master/MOOSE_MISSIONS_UNPACKED.git c:\Projects\Moose_Missions_Unpacked 
