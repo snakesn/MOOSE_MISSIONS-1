@@ -42,7 +42,7 @@ build_script:
         Write-Host "file : $file" 
         Copy-Item -Path c:\Projects\Moose_Include\Moose_Include_Static\Moose.lua -Destination $file
       } 
-      foreach( $dir in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter _unpacked -Recurse -Directory) 
+      foreach( $dir in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter _unpacked -Recurse -Directory | % { $_.FullName } ) 
       { 
         Write-Host "dir : $dir"
         $miz = $dir.ToString().TrimEnd( "\_unpacked" ) + ".miz"
