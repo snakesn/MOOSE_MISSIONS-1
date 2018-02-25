@@ -54,6 +54,7 @@ build_script:
         Write-Host "to_dir : $to_dir"  
         7z a -r -y -tzip "$miz" "$dir_packed/*"
         Remove-Item -Path "$dir_packed" -Force -Recurse
+        Remove-Item -Path "$dir\*.bat" -Force -Recurse 
         mkdir -Path "$to_dir" -Force
         Copy-Item "$dir\*" -Destination "$to_dir" -Recurse -Force
       } 
