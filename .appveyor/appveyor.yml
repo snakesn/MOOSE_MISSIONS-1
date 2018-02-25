@@ -47,7 +47,7 @@ build_script:
         Write-Host "dir_packed : $dir_packed"
         $dir = $dir_packed.ToString().Replace( "\_unpacked","" )
         $miz = $dir_packed.ToString().Replace( "\_unpacked","" )
-        $miz = $miz + "\" + ( Split-Path -Path "$miz" -LeafBase )
+        $miz = $miz + "\" + ( Split-Path -Path "$miz" -Leaf )
         $miz = $miz + ".miz"
         Write-Host "miz : $miz"  
         $to_dir = $dir.Replace("C:\Projects\Moose_Missions_Unpacked\","")
