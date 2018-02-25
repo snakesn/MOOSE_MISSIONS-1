@@ -51,9 +51,9 @@ build_script:
         $to_dir = $dir.Replace("C:\Projects\Moose_Missions_Unpacked\","")
         Write-Host "to_dir : $to_dir"  
         7z a -r -y -tzip "$miz" "$dir_packed/*"
-        mkdir -Path "$to_dir" -Force
         Remove-Item -Path "$dir_packed" -Force -Recurse
-        Copy-Item "$dir" -Destination "$to_dir" -Recurse -Force
+        mkdir -Path "$to_dir" -Force
+        Copy-Item "$dir\*" -Destination "$to_dir" -Recurse -Force
       } 
       echo "Commit to GITHUB" 
       git config --global credential.helper store  
