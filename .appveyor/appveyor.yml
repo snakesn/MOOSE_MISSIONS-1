@@ -51,15 +51,16 @@ build_script:
         $to_dir = $dir.Replace("C:\Projects\Moose_Missions_Unpacked\","")
         Write-Host "to_dir : $to_dir"  
         7z a -r -y -tzip "$miz" "$dir_packed/*"
-        mkdir -Path "$to_dir" -Force 
-        Copy-Item "$dir" -Destination "$to_dir" -Recurse
+        mkdir -Path "$to_dir" -Force
+        Remove-Item -Path "$dir_packed" -Force -Recurse
+        Copy-Item "$dir" -Destination "$to_dir" -Recurse -Force
       } 
       echo "Commit to GITHUB" 
       git config --global credential.helper store  
       Add-Content "$env:USERPROFILE\.git-credentials" "https://$($env:access_token_documentation):x-oauth-basic@github.com`n" 
       git config --global user.email "sven.van.de.velde@telenet.be" 
       git config --global user.name "FlightControl-User" 
-      git add *.miz 2>&1
+      git add . 2>&1
       git commit -m "MOOSE demonstration missions of master branch, commit ID $env:APPVEYOR_REPO_COMMIT [skip ci]" 2>&1 
       git push origin master 2>&1
       dir
