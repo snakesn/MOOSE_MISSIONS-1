@@ -36,7 +36,7 @@ build_script:
       git clone -q --depth=1 https://github.com/FlightControl-Master/MOOSE_INCLUDE.git c:\Projects\Moose_Include 
       git clone -q --depth=1 https://github.com/FlightControl-Master/MOOSE_MISSIONS_UNPACKED.git c:\Projects\Moose_Missions_Unpacked 
       dir c:\Projects 
-      Remove-Item -Path "." -Force -Recurse
+      git rm -r *
       dir 
       foreach( $file in Get-ChildItem "c:\Projects\Moose_Missions_Unpacked" -Filter Moose.lua -Recurse | % { $_.FullName } )  
       { 
