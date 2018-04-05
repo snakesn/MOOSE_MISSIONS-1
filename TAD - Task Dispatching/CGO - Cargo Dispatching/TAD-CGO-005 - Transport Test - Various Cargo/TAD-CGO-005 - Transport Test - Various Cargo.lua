@@ -14,9 +14,9 @@ CommandCenter = COMMANDCENTER
   :New( HQ, "Lima" )
 
 Mission = MISSION
-  :New( CommandCenter, "Operation SandStorm", "Tactical", "Transport Cargo", coalition.side.RED )
+  :New( CommandCenter, "Operation SandStorm", "Tactical", "Transport Cargo", coalition.side.BLUE )
 
-TransportGroups = SET_GROUP:New():FilterCoalitions( "red" ):FilterPrefixes( "Transport" ):FilterStart()
+TransportGroups = SET_GROUP:New():FilterCoalitions( "blue" ):FilterPrefixes( "Transport" ):FilterStart()
 
 TaskDispatcher = TASK_CARGO_DISPATCHER:New( Mission, TransportGroups )
 
