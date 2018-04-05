@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-03T05:47:01.0000000Z-1ceda9249fd93bff54533c1b27fb7b673f9ba821 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-04T12:45:34.0000000Z-9a6b8475e432bbdf13159b0c229b2a0e7b91b763 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -10029,8 +10029,6 @@ function DATABASE:_RegisterGroupTemplate( GroupTemplate, CoalitionSide, Category
 
   local GroupTemplateName = GroupName or env.getValueDictByKey( GroupTemplate.name )
   
-  local TraceTable = {}
-
   if not self.Templates.Groups[GroupTemplateName] then
     self.Templates.Groups[GroupTemplateName] = {}
     self.Templates.Groups[GroupTemplateName].Status = nil
@@ -10054,18 +10052,7 @@ function DATABASE:_RegisterGroupTemplate( GroupTemplate, CoalitionSide, Category
   self.Templates.Groups[GroupTemplateName].CoalitionID = CoalitionSide
   self.Templates.Groups[GroupTemplateName].CountryID = CountryID
 
-  
-  TraceTable[#TraceTable+1] = "Group"
-  TraceTable[#TraceTable+1] = self.Templates.Groups[GroupTemplateName].GroupName
-
-  TraceTable[#TraceTable+1] = "Coalition"
-  TraceTable[#TraceTable+1] = self.Templates.Groups[GroupTemplateName].CoalitionID
-  TraceTable[#TraceTable+1] = "Category"
-  TraceTable[#TraceTable+1] = self.Templates.Groups[GroupTemplateName].CategoryID
-  TraceTable[#TraceTable+1] = "Country"
-  TraceTable[#TraceTable+1] = self.Templates.Groups[GroupTemplateName].CountryID
-
-  TraceTable[#TraceTable+1] = "Units"
+  local UnitNames = {}
 
   for unit_num, UnitTemplate in pairs( GroupTemplate.units ) do
 
@@ -10089,10 +10076,16 @@ function DATABASE:_RegisterGroupTemplate( GroupTemplate, CoalitionSide, Category
       self.Templates.ClientsByID[UnitTemplate.unitId] = UnitTemplate
     end
     
-    TraceTable[#TraceTable+1] = self.Templates.Units[UnitTemplate.name].UnitName 
+    UnitNames[#UnitNames+1] = self.Templates.Units[UnitTemplate.name].UnitName 
   end
 
-  self:E( TraceTable )
+  self:I( { Group = self.Templates.Groups[GroupTemplateName].GroupName,
+            Coalition = self.Templates.Groups[GroupTemplateName].CoalitionID,
+            Category = self.Templates.Groups[GroupTemplateName].CategoryID,
+            Country = self.Templates.Groups[GroupTemplateName].CountryID,
+            Units = UnitNames
+          }
+        )
 end
 
 function DATABASE:GetGroupTemplate( GroupName )
@@ -10109,8 +10102,6 @@ end
 -- @return #DATABASE self
 function DATABASE:_RegisterStaticTemplate( StaticTemplate, CoalitionID, CategoryID, CountryID )
 
-  local TraceTable = {}
-
   local StaticTemplateName = env.getValueDictByKey(StaticTemplate.name)
   
   self.Templates.Statics[StaticTemplateName] = self.Templates.Statics[StaticTemplateName] or {}
@@ -10126,18 +10117,15 @@ function DATABASE:_RegisterStaticTemplate( StaticTemplate, CoalitionID, Category
   self.Templates.Statics[StaticTemplateName].CoalitionID = CoalitionID
   self.Templates.Statics[StaticTemplateName].CountryID = CountryID
 
+  self:I( { Static = self.Templates.Statics[StaticTemplateName].StaticName,
+            Coalition = self.Templates.Statics[StaticTemplateName].CoalitionID,
+            Category = self.Templates.Statics[StaticTemplateName].CategoryID,
+            Country = self.Templates.Statics[StaticTemplateName].CountryID 
+          }
+        )
+        
+  self:AddStatic( StaticTemplateName )
   
-  TraceTable[#TraceTable+1] = "Static"
-  TraceTable[#TraceTable+1] = self.Templates.Statics[StaticTemplateName].StaticName
-
-  TraceTable[#TraceTable+1] = "Coalition"
-  TraceTable[#TraceTable+1] = self.Templates.Statics[StaticTemplateName].CoalitionID
-  TraceTable[#TraceTable+1] = "Category"
-  TraceTable[#TraceTable+1] = self.Templates.Statics[StaticTemplateName].CategoryID
-  TraceTable[#TraceTable+1] = "Country"
-  TraceTable[#TraceTable+1] = self.Templates.Statics[StaticTemplateName].CountryID
-
-  self:E( TraceTable )
 end
 
 
@@ -21842,7 +21830,7 @@ function SPAWNSTATIC:NewFromStatic( SpawnTemplatePrefix, CountryID ) --R2.1
 	local self = BASE:Inherit( self, BASE:New() ) -- #SPAWNSTATIC
 	self:F( { SpawnTemplatePrefix } )
   
-	local TemplateStatic = StaticObject.getByName( SpawnTemplatePrefix )
+	local TemplateStatic = STATIC:FindByName( SpawnTemplatePrefix )
 	if TemplateStatic then
 		self.SpawnTemplatePrefix = SpawnTemplatePrefix
     self.CountryID = CountryID
@@ -22852,7 +22840,7 @@ function POSITIONABLE:GetPointVec2()
     
     local PositionablePointVec2 = POINT_VEC2:NewFromVec3( PositionableVec3 )
   
-    self:T2( PositionablePointVec2 )
+    self:T( PositionablePointVec2 )
     return PositionablePointVec2
   end
   
@@ -23029,6 +23017,18 @@ function POSITIONABLE:IsAboveRunway()
   BASE:E( { "Cannot IsAboveRunway", Positionable = self, Alive = self:IsAlive() } )
 
   return nil
+end
+
+
+function POSITIONABLE:GetSize()
+
+  local DCSObject = self:GetDCSObject()
+
+  if DCSObject then
+    return 1
+  else
+    return 0
+  end
 end
 
 
@@ -26429,16 +26429,6 @@ function CONTROLLABLE:IsAirPlane()
   return nil
 end
 
-function CONTROLLABLE:GetSize()
-
-  local DCSObject = self:GetDCSObject()
-
-  if DCSObject then
-    return 1
-  else
-    return 0
-  end
-end
 
 
 -- Message APIs--- **Wrapper** -- GROUP wraps the DCS Class Group objects.
@@ -29458,6 +29448,24 @@ STATIC = {
 }
 
 
+function STATIC:Register( StaticName )
+  local self = BASE:Inherit( self, POSITIONABLE:New( StaticName ) )
+  self.StaticName = StaticName
+  return self
+end
+
+
+--- Finds a STATIC from the _DATABASE using a DCSStatic object.
+-- @param #STATIC self
+-- @param Dcs.DCSWrapper.Static#Static DCSStatic An existing DCS Static object reference.
+-- @return #STATIC self
+function STATIC:Find( DCSStatic )
+
+  local StaticName = DCSStatic:getName()
+  local StaticFound = _DATABASE:FindStatic( StaticName )
+  return StaticFound
+end
+
 --- Finds a STATIC from the _DATABASE using the relevant Static Name.
 -- As an optional parameter, a briefing text can be given also.
 -- @param #STATIC self
@@ -29481,12 +29489,6 @@ function STATIC:FindByName( StaticName, RaiseError )
   return nil
 end
 
-function STATIC:Register( StaticName )
-  local self = BASE:Inherit( self, POSITIONABLE:New( StaticName ) )
-  self.StaticName = StaticName
-  return self
-end
-
 
 function STATIC:GetDCSObject()
   local DCSStatic = StaticObject.getByName( self.StaticName )
@@ -29497,6 +29499,27 @@ function STATIC:GetDCSObject()
     
   return nil
 end
+
+--- Returns a list of one @{Static}.
+-- @param #STATIC self
+-- @return #list<Wrapper.Static#STATIC> A list of one @{Static}.
+function STATIC:GetUnits()
+  self:F2( { self.StaticName } )
+  local DCSStatic = self:GetDCSObject()
+
+  local Statics = {}
+  
+  if DCSStatic then
+    Statics[1] = STATIC:Find( DCSStatic )
+    self:T3( Statics )
+    return Statics
+  end
+
+  return nil
+end
+
+
+
 
 function STATIC:GetThreatLevel()
 
@@ -30104,7 +30127,7 @@ do -- CARGO
   
     self.Type = Type
     self.Name = Name
-    self.Weight = Weight
+    self.Weight = Weight or 0
     self.CargoObject = nil
     self.CargoCarrier = nil -- Wrapper.Client#CLIENT
     self.Representable = false
@@ -30133,6 +30156,34 @@ do -- CARGO
     return CargoFound
   end  
   
+  --- Check if the cargo can be Boarded.
+  -- @param #CARGO self
+  function CARGO:CanBoard()
+    return true
+  end
+  
+  --- Check if the cargo can be Unboarded.
+  -- @param #CARGO self
+  function CARGO:CanUnboard()
+    return true
+  end
+
+  --- Check if the cargo can be Loaded.
+  -- @param #CARGO self
+  function CARGO:CanLoad()
+    return true
+  end
+  
+  --- Check if the cargo can be Unloaded.
+  -- @param #CARGO self
+  function CARGO:CanUnload()
+    return true
+  end
+
+
+
+  
+  
   --- Destroy the cargo.
   -- @param #CARGO self
   function CARGO:Destroy()
@@ -30158,6 +30209,13 @@ do -- CARGO
     else
       return self.CargoObject:GetName()
     end 
+  end
+  
+  --- Get the amount of Cargo.
+  -- @param #CARGO self
+  -- @return #number The amount of Cargo.
+  function CARGO:GetCount()
+    return 1
   end
   
   --- Get the type of the Cargo.
@@ -30414,8 +30472,11 @@ do -- CARGO_REPRESENTABLE
   -- @param #number NearRadius (optional)
   -- @return #CARGO_REPRESENTABLE
   function CARGO_REPRESENTABLE:New( CargoObject, Type, Name, Weight, ReportRadius, NearRadius )
-    local self = BASE:Inherit( self, CARGO:New( Type, Name, Weight, ReportRadius, NearRadius ) ) -- #CARGO_REPRESENTABLE
+    local self = BASE:Inherit( self, CARGO:New( Type, Name, Weight ) ) -- #CARGO_REPRESENTABLE
     self:F( { Type, Name, Weight, ReportRadius, NearRadius } )
+    
+    self.ReportRadius = ReportRadius or 500
+    self.NearRadius = NearRadius or 25
   
     return self
   end
@@ -31126,19 +31187,25 @@ do -- CARGO_CRATE
   -- @param Wrapper.Static#STATIC CargoStatic
   -- @param #string Type
   -- @param #string Name
-  -- @param #number Weight
   -- @param #number ReportRadius (optional)
   -- @param #number NearRadius (optional)
   -- @return #CARGO_CRATE
-  function CARGO_CRATE:New( CargoStatic, Type, Name, NearRadius )
-    local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoStatic, Type, Name, nil, NearRadius ) ) -- #CARGO_CRATE
+  function CARGO_CRATE:New( CargoStatic, Type, Name, ReportRadius, NearRadius )
+    local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoStatic, Type, Name, nil, ReportRadius, NearRadius ) ) -- #CARGO_CRATE
     self:F( { Type, Name, NearRadius } )
   
     self.CargoObject = CargoStatic
   
     self:T( self.ClassName )
   
-    self:SetEventPriority( 5 )
+    -- Cargo objects are added to the _DATABASE and SET_CARGO objects.
+    _EVENTDISPATCHER:CreateEventNewCargo( self )
+    
+    self:HandleEvent( EVENTS.Dead, self.OnEventCargoDead )
+    self:HandleEvent( EVENTS.Crash, self.OnEventCargoDead )
+    self:HandleEvent( EVENTS.PlayerLeaveUnit, self.OnEventCargoDead )
+    
+    self:SetEventPriority( 4 )
   
     return self
   end
@@ -31200,6 +31267,103 @@ do -- CARGO_CRATE
     end
   end
 
+  --- Check if the cargo can be Boarded.
+  -- @param #CARGO self
+  function CARGO:CanBoard()
+    return false
+  end
+
+  --- Check if the cargo can be Unboarded.
+  -- @param #CARGO self
+  function CARGO_CRATE:CanUnboard()
+    return false
+  end
+
+  --- Get the current Coordinate of the CargoGroup.
+  -- @param #CARGO_CRATE self
+  -- @return Core.Point#COORDINATE The current Coordinate of the first Cargo of the CargoGroup.
+  -- @return #nil There is no valid Cargo in the CargoGroup.
+  function CARGO_CRATE:GetCoordinate()
+    self:F()
+    
+    return self.CargoObject:GetCoordinate()
+  end
+
+  --- Check if the CargoGroup is alive.
+  -- @param #CARGO_CRATE self
+  -- @return #boolean true if the CargoGroup is alive.
+  -- @return #boolean false if the CargoGroup is dead.
+  function CARGO_CRATE:IsAlive()
+
+    local Alive = true
+  
+    -- When the Cargo is Loaded, the Cargo is in the CargoCarrier, so we check if the CargoCarrier is alive.
+    -- When the Cargo is not Loaded, the Cargo is the CargoObject, so we check if the CargoObject is alive.
+    if self:IsLoaded() then
+      Alive = Alive == true and self.CargoCarrier:IsAlive()
+    else
+      Alive = Alive == true and self.CargoObject:IsAlive()
+    end 
+    
+    return Alive
+  
+  end
+
+  
+  --- Route Cargo to Coordinate and randomize locations.
+  -- @param #CARGO_CRATE self
+  -- @param Core.Point#COORDINATE Coordinate
+  function CARGO_CRATE:RouteTo( Coordinate )
+    self:F( {Coordinate = Coordinate } )
+    
+  end
+  
+  --- Check if Cargo is near to the Carrier.
+  -- The Cargo is near to the Carrier within NearRadius.
+  -- @param #CARGO_CRATE self
+  -- @param Wrapper.Group#GROUP CargoCarrier
+  -- @param #number NearRadius
+  -- @return #boolean The Cargo is near to the Carrier.
+  -- @return #nil The Cargo is not near to the Carrier.
+  function CARGO_CRATE:IsNear( CargoCarrier, NearRadius )
+    self:F( {NearRadius = NearRadius } )
+    
+    return self:IsNear( CargoCarrier:GetCoordinate(), NearRadius )
+  end
+
+  --- Check if CargoGroup is in the ReportRadius for the Cargo to be Loaded.
+  -- @param #CARGO_CRATE self
+  -- @param Core.Point#Coordinate Coordinate
+  -- @return #boolean true if the CargoGroup is within the reporting radius.
+  function CARGO_CRATE:IsInRadius( Coordinate )
+    self:F( { Coordinate } )
+  
+    local Distance = 0
+    if self:IsLoaded() then
+      Distance = Coordinate:DistanceFromPointVec2( self.CargoCarrier:GetPointVec2() )
+    else
+      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
+    end
+    self:T( Distance )
+    
+    if Distance <= self.ReportRadius then
+      return true
+    else
+      return false
+    end
+  end
+
+  --- Respawn the CargoGroup.
+  -- @param #CARGO_CRATE self
+  function CARGO_CRATE:Respawn()
+
+    self:F( { "Respawning" } )
+
+    self:SetDeployed( false )
+    self:SetStartState( "UnLoaded" )
+    
+  end
+  
 end
 
 --- **Cargo** -- Management of grouped cargo logistics, which are based on a @{Group} object.
@@ -69004,6 +69168,7 @@ end
 -- The following classes are important to consider:
 -- 
 --   * @{#TASK_CARGO_TRANSPORT}: Defines a task for a human player to transport a set of cargo between various zones.
+--   * @{#TASK_CARGO_CSAR}: Defines a task for a human player to Search and Rescue wounded pilots.
 -- 
 -- ===
 -- 
@@ -69164,7 +69329,7 @@ do -- TASK_CARGO
 
     Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "SelectAction", Rejected = "Reject" }  )
     
-    Fsm:AddTransition( { "Planned", "Assigned", "WaitingForCommand", "ArrivedAtPickup", "ArrivedAtDeploy", "Boarded", "UnBoarded", "Landed", "Boarding" }, "SelectAction", "*" )
+    Fsm:AddTransition( { "Planned", "Assigned", "WaitingForCommand", "ArrivedAtPickup", "ArrivedAtDeploy", "Boarded", "UnBoarded", "Loaded", "UnLoaded", "Landed", "Boarding" }, "SelectAction", "*" )
 
     Fsm:AddTransition( "*", "RouteToPickup", "RoutingToPickup" )
     Fsm:AddProcess   ( "RoutingToPickup", "RouteToPickupPoint", ACT_ROUTE_POINT:New(), { Arrived = "ArriveAtPickup", Cancelled = "CancelRouteToPickup" } )
@@ -69182,10 +69347,14 @@ do -- TASK_CARGO
     Fsm:AddTransition( "*", "PrepareBoarding", "AwaitBoarding" )
     Fsm:AddTransition( "AwaitBoarding", "Board", "Boarding" )
     Fsm:AddTransition( "Boarding", "Boarded", "Boarded" )
+    
+    Fsm:AddTransition( "*", "Load", "Loaded" )
 
     Fsm:AddTransition( "*", "PrepareUnBoarding", "AwaitUnBoarding" )
     Fsm:AddTransition( "AwaitUnBoarding", "UnBoard", "UnBoarding" )
     Fsm:AddTransition( "UnBoarding", "UnBoarded", "UnBoarded" )
+
+    Fsm:AddTransition( "*", "Unload", "Unloaded" )
     
     Fsm:AddTransition( "*", "Planned", "Planned" )
     
@@ -69245,7 +69414,13 @@ do -- TASK_CARGO
                   end
                   if NotInDeployZones then
                     if not TaskUnit:InAir() then
-                      MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Board cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuBoardCargo, self, Cargo ):SetTime(MenuTime)
+                      if Cargo:CanBoard() then
+                        MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Board cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuBoardCargo, self, Cargo ):SetTime(MenuTime)
+                      else
+                        if Cargo:CanLoad() then
+                          MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Load cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuLoadCargo, self, Cargo ):SetTime(MenuTime)
+                        end
+                      end
                       TaskUnit.Menu:SetTime( MenuTime )
                     end
                   end
@@ -69258,7 +69433,13 @@ do -- TASK_CARGO
             
             if Cargo:IsLoaded() then
               if not TaskUnit:InAir() then
-                MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Unboard cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuUnBoardCargo, self, Cargo ):SetTime(MenuTime)
+                if Cargo:CanUnboard() then
+                  MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Unboard cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuUnboardCargo, self, Cargo ):SetTime(MenuTime)
+                else
+                  if Cargo:CanUnload() then
+                    MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Unload cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuUnloadCargo, self, Cargo ):SetTime(MenuTime)
+                  end
+                end
                 TaskUnit.Menu:SetTime( MenuTime )
               end
               -- Deployzones are optional zones that can be selected to request routing information.
@@ -69296,10 +69477,18 @@ do -- TASK_CARGO
       self:__PrepareBoarding( 1.0, Cargo )
     end
     
-    function Fsm:MenuUnBoardCargo( Cargo, DeployZone )
+    function Fsm:MenuLoadCargo( Cargo )
+      self:__Load( 1.0, Cargo )
+    end
+    
+    function Fsm:MenuUnboardCargo( Cargo, DeployZone )
       self:__PrepareUnBoarding( 1.0, Cargo, DeployZone )
     end
     
+    function Fsm:MenuUnloadCargo( Cargo, DeployZone )
+      self:__Unload( 1.0, Cargo, DeployZone )
+    end
+
     function Fsm:MenuRouteToPickup( Cargo )
       self:__RouteToPickup( 1.0, Cargo )
     end
@@ -69497,15 +69686,39 @@ do -- TASK_CARGO
       
       self.Cargo:MessageToGroup( "Boarded ...", TaskUnit:GetGroup() )
 
-      TaskUnit:AddCargo( self.Cargo )
-
-      self:__SelectAction( 1 )
+      self:Load( self.Cargo )
       
       -- TODO:I need to find a more decent solution for this. 
       Task:E( { CargoPickedUp = Task.CargoPickedUp } )
       if self.Cargo:IsAlive() then
         if Task.CargoPickedUp then
           Task:CargoPickedUp( TaskUnit, self.Cargo )
+        end
+      end
+      
+    end
+    
+
+    --- @param #FSM_PROCESS self
+    -- @param Wrapper.Unit#UNIT TaskUnit
+    -- @param Tasking.Task_Cargo#TASK_CARGO Task
+    function Fsm:onafterLoad( TaskUnit, Task, From, Event, To, Cargo )
+      
+      local TaskUnitName = TaskUnit:GetName()
+      self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
+      
+      if not Cargo:IsLoaded() then
+        Cargo:Load( TaskUnit )
+        TaskUnit:AddCargo( Cargo )
+      end
+
+      self:__SelectAction( 1 )
+      
+      -- TODO:I need to find a more decent solution for this. 
+      Task:E( { CargoPickedUp = Task.CargoPickedUp } )
+      if Cargo:IsAlive() then
+        if Task.CargoPickedUp then
+          Task:CargoPickedUp( TaskUnit, Cargo )
         end
       end
       
@@ -69521,7 +69734,7 @@ do -- TASK_CARGO
     -- @param To
     -- @param Cargo
     -- @param Core.Zone#ZONE_BASE DeployZone
-    function Fsm:onafterPrepareUnBoarding( TaskUnit, Task, From, Event, To, Cargo  )
+    function Fsm:onafterPrepareUnBoarding( TaskUnit, Task, From, Event, To, Cargo )
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID(), From, Event, To, Cargo  } )
 
       self.Cargo = Cargo
@@ -69577,33 +69790,51 @@ do -- TASK_CARGO
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
       
       self.Cargo:MessageToGroup( "UnBoarded ...", TaskUnit:GetGroup() )
+      
+      self:Unload( self.Cargo )
+    end
 
-      TaskUnit:RemoveCargo( self.Cargo )
+    --- 
+    -- @param #FSM_PROCESS self
+    -- @param Wrapper.Unit#UNIT TaskUnit
+    -- @param Tasking.Task_Cargo#TASK_CARGO Task
+    function Fsm:onafterUnload( TaskUnit, Task, From, Event, To, Cargo, DeployZone )
+
+      local TaskUnitName = TaskUnit:GetName()
+      self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
+      
+      if not Cargo:IsUnLoaded() then
+        if DeployZone then
+          Cargo:UnLoad( DeployZone:GetPointVec2(), 400, self )
+        else
+          Cargo:UnLoad( TaskUnit:GetPointVec2():AddX(60), 400, self )
+        end          
+      end
+      TaskUnit:RemoveCargo( Cargo )
 
       local NotInDeployZones = true
       for DeployZoneName, DeployZone in pairs( Task.DeployZones ) do
-        if self.Cargo:IsInZone( DeployZone ) then
+        if Cargo:IsInZone( DeployZone ) then
           NotInDeployZones = false
         end
       end
       
       if NotInDeployZones == false then
-        self.Cargo:SetDeployed( true )
+        Cargo:SetDeployed( true )
       end
             
       -- TODO:I need to find a more decent solution for this.
       Task:E( { CargoDeployed = Task.CargoDeployed and "true" or "false" } )
-      Task:E( { CargoIsAlive = self.Cargo:IsAlive() and "true" or "false" } )
-      if self.Cargo:IsAlive() then
+      Task:E( { CargoIsAlive = Cargo:IsAlive() and "true" or "false" } )
+      if Cargo:IsAlive() then
         if Task.CargoDeployed then
-          Task:CargoDeployed( TaskUnit, self.Cargo, self.DeployZone )
+          Task:CargoDeployed( TaskUnit, Cargo, self.DeployZone )
         end
       end
       
       self:Planned()
       self:__SelectAction( 1 )
     end
-
     
     return self
  
