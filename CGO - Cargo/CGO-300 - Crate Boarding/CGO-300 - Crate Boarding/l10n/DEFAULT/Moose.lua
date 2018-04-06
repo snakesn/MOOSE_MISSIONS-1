@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-05T17:45:35.0000000Z-bb4e34a6d11cd36f14f8738446c82d1ee287d273 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-05T17:55:41.0000000Z-75a5029463bd10e4a1357db2b60f90bd94975448 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -30102,6 +30102,7 @@ do -- CARGO
     Slingloadable = false,
     Moveable = false,
     Containable = false,
+    Reported = {},
   }
 
   --- @type CARGO.CargoObjects
@@ -30113,12 +30114,13 @@ do -- CARGO
   -- @param #string Type
   -- @param #string Name
   -- @param #number Weight
+  -- @param #number LoadRadius (optional)
   -- @param #number NearRadius (optional)
   -- @return #CARGO
-  function CARGO:New( Type, Name, Weight ) --R2.1
+  function CARGO:New( Type, Name, Weight, LoadRadius, NearRadius ) --R2.1
   
     local self = BASE:Inherit( self, FSM:New() ) -- #CARGO
-    self:F( { Type, Name, Weight } )
+    self:F( { Type, Name, Weight, LoadRadius, NearRadius } )
     
     self:SetStartState( "UnLoaded" )
     self:AddTransition( { "UnLoaded", "Boarding" }, "Board", "Boarding" )
@@ -30144,6 +30146,9 @@ do -- CARGO
     self.Slingloadable = false
     self.Moveable = false
     self.Containable = false
+    
+    self.LoadRadius = LoadRadius or 500
+    self.NearRadius = NearRadius or 25
     
     self:SetDeployed( false )
   
@@ -30283,8 +30288,9 @@ do -- CARGO
     end 
   end
   
-  --- Set the cargo as deployed
+  --- Set the cargo as deployed.
   -- @param #CARGO self
+  -- @param #boolean Deployed true if the cargo is to be deployed. false or nil otherwise.
   function CARGO:SetDeployed( Deployed )
     self.Deployed = Deployed
   end
@@ -30385,7 +30391,86 @@ do -- CARGO
   end
   
   
+  --- Set the Load radius, which is the radius till when the Cargo can be loaded.
+  -- @param #CARGO self
+  -- @param #number LoadRadius The radius till Cargo can be loaded.
+  -- @return #CARGO
+  function CARGO:SetLoadRadius( LoadRadius )
+    self.LoadRadius = LoadRadius or 150
+  end
   
+  --- Get the Load radius, which is the radius till when the Cargo can be loaded.
+  -- @param #CARGO self
+  -- @return #number The radius till Cargo can be loaded.
+  function CARGO:GetLoadRadius()
+    return self.LoadRadius
+  end
+  
+  
+  
+  --- Check if Cargo is in the LoadRadius for the Cargo to be Boarded or Loaded.
+  -- @param #CARGO self
+  -- @param Core.Point#Coordinate Coordinate
+  -- @return #boolean true if the CargoGroup is within the loading radius.
+  function CARGO:IsInLoadRadius( Coordinate )
+    self:F( { Coordinate } )
+  
+    local Distance = 0
+    if self:IsUnLoaded() then
+      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
+      self:T( Distance )
+      if Distance <= self.LoadRadius then
+        return true
+      end
+    end
+    
+    return false
+  end
+
+
+  --- Check if the Cargo can report itself to be Boarded or Loaded.
+  -- @param #CARGO self
+  -- @param Core.Point#Coordinate Coordinate
+  -- @return #boolean true if the Cargo can report itself.
+  function CARGO:IsInReportRadius( Coordinate )
+    self:F( { Coordinate } )
+  
+    local Distance = 0
+    if self:IsUnLoaded() then
+      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
+      self:T( Distance )
+      if Distance <= self.LoadRadius then
+        return true
+      end
+    end
+    
+    return false
+  end
+
+
+  --- Check if CargoCarrier is near the Cargo to be Loaded.
+  -- @param #CARGO self
+  -- @param Core.Point#POINT_VEC2 PointVec2
+  -- @param #number NearRadius The radius when the cargo will board the Carrier (to avoid collision).
+  -- @return #boolean
+  function CARGO:IsNear( PointVec2, NearRadius )
+    self:F( { PointVec2 = PointVec2, NearRadius = NearRadius } )
+  
+    if self.CargoObject:IsAlive() then
+      --local Distance = PointVec2:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
+      self:F( { CargoObjectName = self.CargoObject:GetName() } )
+      self:F( { CargoObjectVec2 = self.CargoObject:GetVec2() } )
+      self:F( { PointVec2 = PointVec2:GetVec2() } )
+      local Distance = PointVec2:Get2DDistance( self.CargoObject:GetPointVec2() )
+      self:T( Distance )
+      
+      if Distance <= NearRadius then
+        return true
+      end
+    end
+    
+    return false
+  end
   
   
   
@@ -30412,30 +30497,6 @@ do -- CARGO
   end
   
   
-  --- Check if CargoCarrier is near the Cargo to be Loaded.
-  -- @param #CARGO self
-  -- @param Core.Point#POINT_VEC2 PointVec2
-  -- @param #number NearRadius The radius when the cargo will board the Carrier (to avoid collision).
-  -- @return #boolean
-  function CARGO:IsNear( PointVec2, NearRadius )
-    self:F( { PointVec2 = PointVec2, NearRadius = NearRadius } )
-  
-    if self.CargoObject:IsAlive() then
-      --local Distance = PointVec2:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
-      self:F( { CargoObjectName = self.CargoObject:GetName() } )
-      self:F( { CargoObjectVec2 = self.CargoObject:GetVec2() } )
-      self:F( { PointVec2 = PointVec2:GetVec2() } )
-      local Distance = PointVec2:Get2DDistance( self.CargoObject:GetPointVec2() )
-      self:T( Distance )
-      
-      if Distance <= NearRadius then
-        return true
-      end
-    end
-    
-    return false
-  end
-  
   --- Get the current PointVec2 of the cargo.
   -- @param #CARGO self
   -- @return Core.Point#POINT_VEC2
@@ -30458,6 +30519,85 @@ do -- CARGO
     self.Weight = Weight
     return self
   end
+  
+  --- Send a CC message to a @{Group}.
+  -- @param #CARGO self
+  -- @param #string Message
+  -- @param Wrapper.Group#GROUP CarrierGroup The Carrier Group.
+  -- @param #sring Name (optional) The name of the Group used as a prefix for the message to the Group. If not provided, there will be nothing shown.
+  function CARGO:MessageToGroup( Message, CarrierGroup, Name )
+  
+    MESSAGE:New( Message, 20, "Cargo " .. self:GetName() ):ToGroup( CarrierGroup )
+  
+  end
+  
+  --- Report to a Carrier Group.
+  -- @param #CARGO self
+  -- @param #string Action The string describing the action for the cargo.
+  -- @param Wrapper.Group#GROUP CarrierGroup The Carrier Group to send the report to.
+  -- @return #CARGO
+  function CARGO:Report( ReportText, Action, CarrierGroup )
+
+    if not self.Reported[CarrierGroup] or not self.Reported[CarrierGroup][Action] then
+      self.Reported[CarrierGroup] = {}
+      self.Reported[CarrierGroup][Action] = true  
+      self:MessageToGroup( ReportText, CarrierGroup )
+      if self.ReportFlareColor then
+        if not self.Reported[CarrierGroup]["Flaring"] then
+          self:Flare( self.ReportFlareColor )
+          self.Reported[CarrierGroup]["Flaring"] = true
+        end
+      end
+      if self.ReportSmokeColor then
+        if not self.Reported[CarrierGroup]["Smoking"] then
+          self:Smoke( self.ReportSmokeColor )
+          self.Reported[CarrierGroup]["Smoking"] = true
+        end
+      end
+    end
+  end
+  
+  
+  --- Report to a Carrier Group with a Flaring signal.
+  -- @param #CARGO self
+  -- @param Utils#UTILS.FlareColor FlareColor the color of the flare.
+  -- @return #CARGO
+  function CARGO:ReportFlare( FlareColor )
+
+    self.ReportFlareColor = FlareColor 
+  end
+  
+  
+  --- Report to a Carrier Group with a Smoking signal.
+  -- @param #CARGO self
+  -- @param Utils#UTILS.SmokeColor SmokeColor the color of the smoke.
+  -- @return #CARGO
+  function CARGO:ReportSmoke( SmokeColor )
+
+    self.ReportSmokeColor = SmokeColor 
+  end
+  
+  
+  --- Reset the reporting for a Carrier Group.
+  -- @param #CARGO self
+  -- @param #string Action The string describing the action for the cargo.
+  -- @param Wrapper.Group#GROUP CarrierGroup The Carrier Group to send the report to.
+  -- @return #CARGO
+  function CARGO:ReportReset( Action, CarrierGroup )
+
+    self.Reported[CarrierGroup][Action] = nil
+  end
+  
+  --- Reset all the reporting for a Carrier Group.
+  -- @param #CARGO self
+  -- @param Wrapper.Group#GROUP CarrierGroup The Carrier Group to send the report to.
+  -- @return #CARGO
+  function CARGO:ReportResetAll( CarrierGroup )
+
+    self.Reported[CarrierGroup] = nil
+  end
+  
+  
 
 end -- CARGO
 
@@ -30478,16 +30618,13 @@ do -- CARGO_REPRESENTABLE
   -- @param #string Type
   -- @param #string Name
   -- @param #number Weight
-  -- @param #number ReportRadius (optional)
+  -- @param #number LoadRadius (optional)
   -- @param #number NearRadius (optional)
   -- @return #CARGO_REPRESENTABLE
-  function CARGO_REPRESENTABLE:New( CargoObject, Type, Name, Weight, ReportRadius, NearRadius )
-    local self = BASE:Inherit( self, CARGO:New( Type, Name, Weight ) ) -- #CARGO_REPRESENTABLE
-    self:F( { Type, Name, Weight, ReportRadius, NearRadius } )
+  function CARGO_REPRESENTABLE:New( CargoObject, Type, Name, Weight, LoadRadius, NearRadius )
+    local self = BASE:Inherit( self, CARGO:New( Type, Name, Weight, LoadRadius, NearRadius ) ) -- #CARGO_REPRESENTABLE
+    self:F( { Type, Name, Weight, LoadRadius, NearRadius } )
     
-    self.ReportRadius = ReportRadius or 500
-    self.NearRadius = NearRadius or 25
-  
     return self
   end
 
@@ -30539,14 +30676,12 @@ do -- CARGO_REPORTABLE
   -- @param #string Type
   -- @param #string Name
   -- @param #number Weight
-  -- @param #number ReportRadius (optional)
+  -- @param #number LoadRadius (optional)
   -- @param #number NearRadius (optional)
   -- @return #CARGO_REPORTABLE
-  function CARGO_REPORTABLE:New( Type, Name, Weight, ReportRadius )
-    local self = BASE:Inherit( self, CARGO:New( Type, Name, Weight ) ) -- #CARGO_REPORTABLE
-    self:F( { Type, Name, Weight, ReportRadius } )
-  
-    self.ReportRadius = ReportRadius or 1000
+  function CARGO_REPORTABLE:New( Type, Name, Weight, LoadRadius, NearRadius )
+    local self = BASE:Inherit( self, CARGO:New( Type, Name, Weight, LoadRadius, NearRadius ) ) -- #CARGO_REPORTABLE
+    self:F( { Type, Name, Weight, LoadRadius, NearRadius } )
   
     return self
   end
@@ -30558,19 +30693,10 @@ do -- CARGO_REPORTABLE
   -- @param #sring Name (optional) The name of the Group used as a prefix for the message to the Group. If not provided, there will be nothing shown.
   function CARGO_REPORTABLE:MessageToGroup( Message, TaskGroup, Name )
   
-    local Prefix = Name and "@ " .. Name .. ": " or "@ " .. TaskGroup:GetCallsign() .. ": "
-    Message = Prefix .. Message 
-    MESSAGE:New( Message, 20, "Cargo: " .. self:GetName() ):ToGroup( TaskGroup )
+    MESSAGE:New( Message, 20, "Cargo " .. self:GetName() ):ToGroup( TaskGroup )
   
   end
 
-  --- Get the Report radius, which is the radius when the Cargo is reporting itself.
-  -- @param #CARGO_REPORTABLE self
-  -- @return #number The range till Cargo reports itself.
-  function CARGO_REPORTABLE:GetBoardingRange()
-    return self.ReportRadius
-  end
-  
 
   
 end
@@ -30595,12 +30721,12 @@ do -- CARGO_PACKAGE
 -- @param #string Type
 -- @param #string Name
 -- @param #number Weight
--- @param #number ReportRadius (optional)
+-- @param #number LoadRadius (optional)
 -- @param #number NearRadius (optional)
 -- @return #CARGO_PACKAGE
-function CARGO_PACKAGE:New( CargoCarrier, Type, Name, Weight, ReportRadius, NearRadius )
-  local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoCarrier, Type, Name, Weight, ReportRadius, NearRadius ) ) -- #CARGO_PACKAGE
-  self:F( { Type, Name, Weight, ReportRadius, NearRadius } )
+function CARGO_PACKAGE:New( CargoCarrier, Type, Name, Weight, LoadRadius, NearRadius )
+  local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoCarrier, Type, Name, Weight, LoadRadius, NearRadius ) ) -- #CARGO_PACKAGE
+  self:F( { Type, Name, Weight, LoadRadius, NearRadius } )
 
   self:T( CargoCarrier )
   self.CargoCarrier = CargoCarrier
@@ -30841,7 +30967,7 @@ do -- CARGO_UNIT
   -- @param #string Type
   -- @param #string Name
   -- @param #number Weight
-  -- @param #number ReportRadius (optional)
+  -- @param #number LoadRadius (optional)
   -- @param #number NearRadius (optional)
   -- @return #CARGO_UNIT
   function CARGO_UNIT:New( CargoUnit, Type, Name, Weight, NearRadius )
@@ -31179,7 +31305,7 @@ do -- CARGO_SLINGLOAD
 
   --- Models the behaviour of cargo crates, which can only be slingloaded. 
   -- @type CARGO_SLINGLOAD
-  -- @extends #CARGO_REPRESENTABLE
+  -- @extends Cargo.Cargo#CARGO_REPRESENTABLE
   
   --- # CARGO\_CRATE class, extends @{#CARGO_REPRESENTABLE}
   -- 
@@ -31197,11 +31323,11 @@ do -- CARGO_SLINGLOAD
   -- @param Wrapper.Static#STATIC CargoStatic
   -- @param #string Type
   -- @param #string Name
-  -- @param #number ReportRadius (optional)
+  -- @param #number LoadRadius (optional)
   -- @param #number NearRadius (optional)
   -- @return #CARGO_SLINGLOAD
-  function CARGO_SLINGLOAD:New( CargoStatic, Type, Name, ReportRadius, NearRadius )
-    local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoStatic, Type, Name, nil, ReportRadius, NearRadius ) ) -- #CARGO_SLINGLOAD
+  function CARGO_SLINGLOAD:New( CargoStatic, Type, Name, LoadRadius, NearRadius )
+    local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoStatic, Type, Name, nil, LoadRadius, NearRadius ) ) -- #CARGO_SLINGLOAD
     self:F( { Type, Name, NearRadius } )
   
     self.CargoObject = CargoStatic
@@ -31244,6 +31370,28 @@ do -- CARGO_SLINGLOAD
   function CARGO_SLINGLOAD:CanUnload()
     return false
   end
+
+
+  --- Check if Cargo Slingload is in the radius for the Cargo to be Boarded or Loaded.
+  -- @param #CARGO_SLINGLOAD self
+  -- @param Core.Point#Coordinate Coordinate
+  -- @return #boolean true if the Cargo Slingload is within the loading radius.
+  function CARGO_SLINGLOAD:IsInLoadRadius( Coordinate )
+    self:F( { Coordinate } )
+  
+    local Distance = 0
+    if self:IsUnLoaded() then
+      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
+      self:T( Distance )
+      if Distance <= self.NearRadius then
+        return true
+      end
+    end
+    
+    return false
+  end
+
+
 
   --- Get the current Coordinate of the CargoGroup.
   -- @param #CARGO_SLINGLOAD self
@@ -31299,28 +31447,6 @@ do -- CARGO_SLINGLOAD
   end
 
 
-  --- Check if CargoGroup is in the ReportRadius for the Cargo to be Loaded.
-  -- @param #CARGO_SLINGLOAD self
-  -- @param Core.Point#Coordinate Coordinate
-  -- @return #boolean true if the CargoGroup is within the reporting radius.
-  function CARGO_SLINGLOAD:IsInRadius( Coordinate )
-    self:F( { Coordinate } )
-  
-    local Distance = 0
-    if self:IsLoaded() then
-      Distance = Coordinate:DistanceFromPointVec2( self.CargoCarrier:GetPointVec2() )
-    else
-      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
-    end
-    self:T( Distance )
-    
-    if Distance <= self.ReportRadius then
-      return true
-    else
-      return false
-    end
-  end
-
   --- Respawn the CargoGroup.
   -- @param #CARGO_SLINGLOAD self
   function CARGO_SLINGLOAD:Respawn()
@@ -31358,7 +31484,7 @@ do -- CARGO_CRATE
 
   --- Models the behaviour of cargo crates, which can be slingloaded and boarded on helicopters. 
   -- @type CARGO_CRATE
-  -- @extends #CARGO_REPRESENTABLE
+  -- @extends Cargo.Cargo#CARGO_REPRESENTABLE
   
   --- # CARGO\_CRATE class, extends @{#CARGO_REPRESENTABLE}
   -- 
@@ -31377,11 +31503,11 @@ do -- CARGO_CRATE
   -- @param Wrapper.Static#STATIC CargoStatic
   -- @param #string Type
   -- @param #string Name
-  -- @param #number ReportRadius (optional)
+  -- @param #number LoadRadius (optional)
   -- @param #number NearRadius (optional)
   -- @return #CARGO_CRATE
-  function CARGO_CRATE:New( CargoStatic, Type, Name, ReportRadius, NearRadius )
-    local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoStatic, Type, Name, nil, ReportRadius, NearRadius ) ) -- #CARGO_CRATE
+  function CARGO_CRATE:New( CargoStatic, Type, Name, LoadRadius, NearRadius )
+    local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoStatic, Type, Name, nil, LoadRadius, NearRadius ) ) -- #CARGO_CRATE
     self:F( { Type, Name, NearRadius } )
   
     self.CargoObject = CargoStatic
@@ -31469,6 +31595,27 @@ do -- CARGO_CRATE
     return false
   end
 
+  --- Check if Cargo Crate is in the radius for the Cargo to be Boarded or Loaded.
+  -- @param #CARGO self
+  -- @param Core.Point#Coordinate Coordinate
+  -- @return #boolean true if the Cargo Crate is within the loading radius.
+  function CARGO_CRATE:IsInLoadRadius( Coordinate )
+    self:F( { Coordinate } )
+  
+    local Distance = 0
+    if self:IsUnLoaded() then
+      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
+      self:T( Distance )
+      if Distance <= self.NearRadius then
+        return true
+      end
+    end
+    
+    return false
+  end
+
+
+
   --- Get the current Coordinate of the CargoGroup.
   -- @param #CARGO_CRATE self
   -- @return Core.Point#COORDINATE The current Coordinate of the first Cargo of the CargoGroup.
@@ -31523,28 +31670,6 @@ do -- CARGO_CRATE
   end
 
 
-  --- Check if CargoGroup is in the ReportRadius for the Cargo to be Loaded.
-  -- @param #CARGO_CRATE self
-  -- @param Core.Point#Coordinate Coordinate
-  -- @return #boolean true if the CargoGroup is within the reporting radius.
-  function CARGO_CRATE:IsInRadius( Coordinate )
-    self:F( { Coordinate } )
-  
-    local Distance = 0
-    if self:IsLoaded() then
-      Distance = Coordinate:DistanceFromPointVec2( self.CargoCarrier:GetPointVec2() )
-    else
-      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
-    end
-    self:T( Distance )
-    
-    if Distance <= self.ReportRadius then
-      return true
-    else
-      return false
-    end
-  end
-
   --- Respawn the CargoGroup.
   -- @param #CARGO_CRATE self
   function CARGO_CRATE:Respawn()
@@ -31583,7 +31708,7 @@ end
 do -- CARGO_GROUP
 
   --- @type CARGO_GROUP
-  -- @extends #CARGO_REPORTABLE
+  -- @extends Cargo.Cargo#CARGO_REPORTABLE
   -- @field Core.Set#SET_CARGO CargoSet The collection of derived CARGO objects.
   -- @field #string GroupName The name of the CargoGroup.
   
@@ -31605,12 +31730,12 @@ do -- CARGO_GROUP
 -- @param Wrapper.Group#GROUP CargoGroup
 -- @param #string Type
 -- @param #string Name
--- @param #number ReportRadius (optional)
+-- @param #number LoadRadius (optional)
 -- @param #number NearRadius (optional)
 -- @return #CARGO_GROUP
-function CARGO_GROUP:New( CargoGroup, Type, Name, ReportRadius )
-  local self = BASE:Inherit( self, CARGO_REPORTABLE:New( Type, Name, 0, ReportRadius ) ) -- #CARGO_GROUP
-  self:F( { Type, Name, ReportRadius } )
+function CARGO_GROUP:New( CargoGroup, Type, Name, LoadRadius )
+  local self = BASE:Inherit( self, CARGO_REPORTABLE:New( Type, Name, 0, LoadRadius ) ) -- #CARGO_GROUP
+  self:F( { Type, Name, LoadRadius } )
 
   self.CargoSet = SET_CARGO:New()
   
@@ -32015,11 +32140,11 @@ function CARGO_GROUP:OnEventCargoDead( EventData )
     return nil
   end
 
-  --- Check if CargoGroup is in the ReportRadius for the Cargo to be Loaded.
+  --- Check if Cargo Group is in the radius for the Cargo to be Boarded.
   -- @param #CARGO_GROUP self
   -- @param Core.Point#Coordinate Coordinate
-  -- @return #boolean true if the CargoGroup is within the reporting radius.
-  function CARGO_GROUP:IsInRadius( Coordinate )
+  -- @return #boolean true if the Cargo Group is within the load radius.
+  function CARGO_GROUP:IsInLoadRadius( Coordinate )
     self:F( { Coordinate } )
   
     local Cargo = self.CargoSet:GetFirst() -- #CARGO
@@ -32033,10 +32158,35 @@ function CARGO_GROUP:OnEventCargoDead( EventData )
       end
       self:T( Distance )
       
-      if Distance <= self.ReportRadius then
+      if Distance <= self.LoadRadius then
         return true
       else
         return false
+      end
+    end
+    
+    return nil
+  
+  end
+
+
+  --- Check if Cargo Group is in the report radius.
+  -- @param #CARGO_GROUP self
+  -- @param Core.Point#Coordinate Coordinate
+  -- @return #boolean true if the Cargo Group is within the report radius.
+  function CARGO_GROUP:IsInReportRadius( Coordinate )
+    self:F( { Coordinate } )
+  
+    local Cargo = self.CargoSet:GetFirst() -- #CARGO
+
+    if Cargo then
+      local Distance = 0
+      if Cargo:IsUnLoaded() then
+        Distance = Coordinate:DistanceFromPointVec2( Cargo.CargoObject:GetPointVec2() )
+        self:T( Distance )
+        if Distance <= self.LoadRadius then
+          return true
+        end
       end
     end
     
@@ -69577,7 +69727,7 @@ do -- TASK_CARGO
       
       Task.SetCargo:ForEachCargo(
         
-        --- @param Core.Cargo#CARGO Cargo
+        --- @param Cargo.Cargo#CARGO Cargo
         function( Cargo ) 
         
           if Cargo:IsAlive() then
@@ -69597,7 +69747,7 @@ do -- TASK_CARGO
         
             if Cargo:IsUnLoaded() then
               if CargoItemCount <= Task.CargoLimit then 
-                if Cargo:IsInRadius( TaskUnit:GetPointVec2() ) then
+                if Cargo:IsInReportRadius( TaskUnit:GetPointVec2() ) then
                   local NotInDeployZones = true
                   for DeployZoneName, DeployZone in pairs( Task.DeployZones ) do
                     if Cargo:IsInZone( DeployZone ) then
@@ -69607,20 +69757,50 @@ do -- TASK_CARGO
                   if NotInDeployZones then
                     if not TaskUnit:InAir() then
                       if Cargo:CanBoard() == true then
-                        MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Board cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuBoardCargo, self, Cargo ):SetTime(MenuTime)
+                        if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
+                          Cargo:Report( "Reporting for boarding at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "board", TaskUnit:GetGroup() )
+                          MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Board cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuBoardCargo, self, Cargo ):SetTime(MenuTime)
+                        else
+                          Cargo:Report( "Reporting at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                        end
                       else
                         if Cargo:CanLoad() == true then
-                          MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Load cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuLoadCargo, self, Cargo ):SetTime(MenuTime)
+                          if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
+                            Cargo:Report( "Reporting for loading at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "load", TaskUnit:GetGroup() )
+                            MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Load cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuLoadCargo, self, Cargo ):SetTime(MenuTime)
+                          else
+                            Cargo:Report( "Reporting at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                          end
                         end
                       end
                       TaskUnit.Menu:SetTime( MenuTime )
+                    else
+                      Cargo:ReportResetAll( TaskUnit:GetGroup() )
                     end
                   end
                 else
                   MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Route to Pickup cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuRouteToPickup, self, Cargo ):SetTime(MenuTime)
                   TaskUnit.Menu:SetTime( MenuTime )
+                  Cargo:ReportResetAll( TaskUnit:GetGroup() )
                 end
               end
+              -- Cargo in deployzones are flagged as deployed.
+              for DeployZoneName, DeployZone in pairs( Task.DeployZones ) do
+                if Cargo:IsInZone( DeployZone ) then
+                  if not Cargo:IsDeployed() then
+                    Cargo:SetDeployed( true )
+                    -- TODO:I need to find a more decent solution for this.
+                    Task:E( { CargoDeployed = Task.CargoDeployed and "true" or "false" } )
+                    Task:E( { CargoIsAlive = Cargo:IsAlive() and "true" or "false" } )
+                    if Cargo:IsAlive() then
+                      if Task.CargoDeployed then
+                        Task:CargoDeployed( TaskUnit, Cargo, DeployZone )
+                      end
+                    end
+                  end
+                end
+              end
+              
             end
             
             if Cargo:IsLoaded() then
@@ -69650,7 +69830,7 @@ do -- TASK_CARGO
       TaskUnit.Menu:Remove( MenuTime )
       
       
-      self:__SelectAction( -15 )
+      self:__SelectAction( -5 )
       
     end
     
@@ -69788,7 +69968,7 @@ do -- TASK_CARGO
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       
       if self.Cargo:IsAlive() then
-        if self.Cargo:IsInRadius( TaskUnit:GetPointVec2() ) then
+        if self.Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
           if TaskUnit:InAir() then
             self:__Land( -10, Action )
           else
@@ -69812,7 +69992,7 @@ do -- TASK_CARGO
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       
       if self.Cargo:IsAlive() then
-        if self.Cargo:IsInRadius( TaskUnit:GetPointVec2() ) then
+        if self.Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
           if TaskUnit:InAir() then
             self:__Land( -0.1, Action )
           else
@@ -69853,7 +70033,7 @@ do -- TASK_CARGO
       end
 
       if self.Cargo:IsAlive() then
-        if self.Cargo:IsInRadius( TaskUnit:GetPointVec2() ) then
+        if self.Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
           if TaskUnit:InAir() then
             --- ABORT the boarding. Split group if any and go back to select action.
           else
@@ -69996,26 +70176,6 @@ do -- TASK_CARGO
         end          
       end
       TaskUnit:RemoveCargo( Cargo )
-
-      local NotInDeployZones = true
-      for DeployZoneName, DeployZone in pairs( Task.DeployZones ) do
-        if Cargo:IsInZone( DeployZone ) then
-          NotInDeployZones = false
-        end
-      end
-      
-      if NotInDeployZones == false then
-        Cargo:SetDeployed( true )
-      end
-            
-      -- TODO:I need to find a more decent solution for this.
-      Task:E( { CargoDeployed = Task.CargoDeployed and "true" or "false" } )
-      Task:E( { CargoIsAlive = Cargo:IsAlive() and "true" or "false" } )
-      if Cargo:IsAlive() then
-        if Task.CargoDeployed then
-          Task:CargoDeployed( TaskUnit, Cargo, self.DeployZone )
-        end
-      end
       
       self:Planned()
       self:__SelectAction( 1 )
@@ -70086,7 +70246,7 @@ do -- TASK_CARGO
     local ActRouteCargo = ProcessUnit:GetProcess( "RoutingToPickup", "RouteToPickupPoint" ) -- Actions.Act_Route#ACT_ROUTE_POINT
     ActRouteCargo:Reset()
     ActRouteCargo:SetCoordinate( Cargo:GetCoordinate() )
-    ActRouteCargo:SetRange( Cargo:GetBoardingRange() )
+    ActRouteCargo:SetRange( Cargo:GetLoadRadius() )
     ActRouteCargo:SetMenuCancel( TaskUnit:GetGroup(), "Cancel Routing to Cargo " .. Cargo:GetName(), TaskUnit.Menu )
     ActRouteCargo:Start()
     return self
