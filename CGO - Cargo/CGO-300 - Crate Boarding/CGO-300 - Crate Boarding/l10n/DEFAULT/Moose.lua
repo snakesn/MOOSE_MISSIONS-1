@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-07T08:20:00.0000000Z-e3755e95b7ac39e3dd31fdce566859cf849a3567 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-07T12:22:58.0000000Z-35c4c07c0f51a8df3dfefdf302b2ceec25599d75 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -30306,6 +30306,14 @@ do -- CARGO
   -- @return #boolean true if loaded
   function CARGO:IsLoaded()
     return self:Is( "Loaded" )
+  end
+  
+  --- Check if cargo is loaded.
+  -- @param #CARGO self
+  -- @param Wrapper.Unit#UNIT Carrier
+  -- @return #boolean true if loaded
+  function CARGO:IsLoadedInCarrier( Carrier )
+    return self.CargoCarrier and self.CargoCarrier:GetName() == Carrier:GetName()
   end
   
   --- Check if cargo is unloaded.
@@ -69960,7 +69968,7 @@ do -- TASK_CARGO
               
             end
             
-            if Cargo:IsLoaded() then
+            if Cargo:IsLoaded() == true and Cargo:IsLoadedInCarrier( TaskUnit ) == true then
               if not TaskUnit:InAir() then
                 if Cargo:CanUnboard() == true then
                   MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Unboard cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuUnboardCargo, self, Cargo ):SetTime(MenuTime)
@@ -69987,7 +69995,7 @@ do -- TASK_CARGO
       TaskUnit.Menu:Remove( MenuTime )
       
       
-      self:__SelectAction( -5 )
+      self:__SelectAction( -1 )
       
     end
     
