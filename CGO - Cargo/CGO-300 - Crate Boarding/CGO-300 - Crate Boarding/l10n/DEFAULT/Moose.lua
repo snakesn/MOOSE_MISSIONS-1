@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-06T19:35:32.0000000Z-f533f2616cdd1011d6491ee73e0b654c5ce5a54d ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-07T08:20:00.0000000Z-e3755e95b7ac39e3dd31fdce566859cf849a3567 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -14905,6 +14905,19 @@ function SET_CARGO:New() --R2.1
   return self
 end
 
+
+--- (R2.1) Add CARGO to SET_CARGO.
+-- @param Core.Set#SET_CARGO self
+-- @param Cargo.Cargo#CARGO Cargo A single cargo.
+-- @return self
+function SET_CARGO:AddCargo( Cargo ) --R2.4
+
+  self:Add( Cargo:GetName(), Cargo )
+    
+  return self
+end
+
+
 --- (R2.1) Add CARGOs to SET_CARGO.
 -- @param Core.Set#SET_CARGO self
 -- @param #string AddCargoNames A single name or an array of CARGO names.
@@ -25578,7 +25591,7 @@ end
 -- @param #CONTROLLABLE self
 -- @return #CONTROLLABLE
 function CONTROLLABLE:RouteStop()
-  self:F2()
+  self:F("RouteStop")
   
   local CommandStop = self:CommandStopRoute( true )
   self:SetCommand( CommandStop )
@@ -25589,7 +25602,7 @@ end
 -- @param #CONTROLLABLE self
 -- @return #CONTROLLABLE
 function CONTROLLABLE:RouteResume()
-  self:F2()
+  self:F("RouteResume")
   
   local CommandResume = self:CommandStopRoute( false )
   self:SetCommand( CommandResume )
@@ -31189,7 +31202,11 @@ do -- CARGO_UNIT
     local NearRadius = NearRadius or 25
     
     self.CargoInAir = self.CargoObject:InAir()
-  
+    
+    local Desc = self.CargoObject:GetDesc()
+    local MaxSpeed = Desc.speedMaxOffRoad
+    local TypeName = Desc.typeName
+    
     self:T( self.CargoInAir )
   
     -- Only move the group to the carrier when the cargo is not in the air
@@ -31198,28 +31215,33 @@ do -- CARGO_UNIT
       if self:IsNear( CargoCarrier:GetPointVec2(), NearRadius ) then
         self:Load( CargoCarrier, NearRadius, ... )
       else
-        local Speed = 90
-        local Angle = 180
-        local Distance = 5
+        if MaxSpeed and MaxSpeed == 0 or TypeName and TypeName == "Stinger comm" then
+          self:Load( CargoCarrier, NearRadius, ... )
+        else
+          
+          local Speed = 90
+          local Angle = 180
+          local Distance = 5
+          
+          NearRadius = NearRadius or 25
         
-        NearRadius = NearRadius or 25
-      
-        local CargoCarrierPointVec2 = CargoCarrier:GetPointVec2()
-        local CargoCarrierHeading = CargoCarrier:GetHeading() -- Get Heading of object in degrees.
-        local CargoDeployHeading = ( ( CargoCarrierHeading + Angle ) >= 360 ) and ( CargoCarrierHeading + Angle - 360 ) or ( CargoCarrierHeading + Angle )
-        local CargoDeployPointVec2 = CargoCarrierPointVec2:Translate( Distance, CargoDeployHeading )
-      
-        local Points = {}
-      
-        local PointStartVec2 = self.CargoObject:GetPointVec2()
-      
-        Points[#Points+1] = PointStartVec2:WaypointGround( Speed )
-        Points[#Points+1] = CargoDeployPointVec2:WaypointGround( Speed )
-      
-        local TaskRoute = self.CargoObject:TaskRoute( Points )
-        self.CargoObject:SetTask( TaskRoute, 2 )
-        self:__Boarding( -1, CargoCarrier, NearRadius )
-        self.RunCount = 0
+          local CargoCarrierPointVec2 = CargoCarrier:GetPointVec2()
+          local CargoCarrierHeading = CargoCarrier:GetHeading() -- Get Heading of object in degrees.
+          local CargoDeployHeading = ( ( CargoCarrierHeading + Angle ) >= 360 ) and ( CargoCarrierHeading + Angle - 360 ) or ( CargoCarrierHeading + Angle )
+          local CargoDeployPointVec2 = CargoCarrierPointVec2:Translate( Distance, CargoDeployHeading )
+        
+          local Points = {}
+        
+          local PointStartVec2 = self.CargoObject:GetPointVec2()
+        
+          Points[#Points+1] = PointStartVec2:WaypointGround( Speed )
+          Points[#Points+1] = CargoDeployPointVec2:WaypointGround( Speed )
+        
+          local TaskRoute = self.CargoObject:TaskRoute( Points )
+          self.CargoObject:SetTask( TaskRoute, 2 )
+          self:__Boarding( -1, CargoCarrier, NearRadius )
+          self.RunCount = 0
+        end
       end
     end
     
