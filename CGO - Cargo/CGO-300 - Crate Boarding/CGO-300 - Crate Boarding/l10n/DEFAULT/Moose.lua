@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-08T09:02:59.0000000Z-1e91e11e0f170c05fa3b8b422fb2fc0fa43557e3 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-08T11:34:41.0000000Z-2156e58025703ca76edc57d43ef6a07f7b8dd1c7 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -30498,7 +30498,7 @@ do -- CARGO
   -- @param Core.Point#Coordinate Coordinate
   -- @return #boolean true if the CargoGroup is within the loading radius.
   function CARGO:IsInLoadRadius( Coordinate )
-    self:F( { Coordinate } )
+    self:F( { Coordinate, LoadRadius = self.LoadRadius } )
   
     local Distance = 0
     if self:IsUnLoaded() then
@@ -31506,6 +31506,26 @@ do -- CARGO_SLINGLOAD
   end
 
 
+  --- Check if Cargo Crate is in the radius for the Cargo to be reported.
+  -- @param #CARGO_SLINGLOAD self
+  -- @param Core.Point#Coordinate Coordinate
+  -- @return #boolean true if the Cargo Crate is within the report radius.
+  function CARGO_SLINGLOAD:IsInReportRadius( Coordinate )
+    self:F( { Coordinate, LoadRadius = self.LoadRadius } )
+  
+    local Distance = 0
+    if self:IsUnLoaded() then
+      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
+      self:T( Distance )
+      if Distance <= self.LoadRadius then
+        return true
+      end
+    end
+    
+    return false
+  end
+
+
   --- Check if Cargo Slingload is in the radius for the Cargo to be Boarded or Loaded.
   -- @param #CARGO_SLINGLOAD self
   -- @param Core.Point#Coordinate Coordinate
@@ -31729,12 +31749,32 @@ do -- CARGO_CRATE
     return false
   end
 
+  --- Check if Cargo Crate is in the radius for the Cargo to be reported.
+  -- @param #CARGO self
+  -- @param Core.Point#Coordinate Coordinate
+  -- @return #boolean true if the Cargo Crate is within the report radius.
+  function CARGO_CRATE:IsInReportRadius( Coordinate )
+    self:F( { Coordinate, LoadRadius = self.LoadRadius } )
+  
+    local Distance = 0
+    if self:IsUnLoaded() then
+      Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
+      self:T( Distance )
+      if Distance <= self.LoadRadius then
+        return true
+      end
+    end
+    
+    return false
+  end
+
+
   --- Check if Cargo Crate is in the radius for the Cargo to be Boarded or Loaded.
   -- @param #CARGO self
   -- @param Core.Point#Coordinate Coordinate
   -- @return #boolean true if the Cargo Crate is within the loading radius.
   function CARGO_CRATE:IsInLoadRadius( Coordinate )
-    self:F( { Coordinate } )
+    self:F( { Coordinate, LoadRadius = self.NearRadius } )
   
     local Distance = 0
     if self:IsUnLoaded() then
@@ -70190,7 +70230,7 @@ do -- TASK_CARGO
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
 
       if Cargo:IsAlive() then
-        self.Cargo = Cargo -- Core.Cargo#CARGO
+        self.Cargo = Cargo -- Cargo.Cargo#CARGO
         Task:SetCargoPickup( self.Cargo, TaskUnit )
         self:__RouteToPickupPoint( -0.1 )
       end
@@ -70272,7 +70312,7 @@ do -- TASK_CARGO
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       
       if self.Cargo:IsAlive() then
-        if self.Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
+        if self.Cargo:IsInReportRadius( TaskUnit:GetPointVec2() ) then
           if TaskUnit:InAir() then
             self:__Land( -10, Action )
           else
@@ -70281,9 +70321,9 @@ do -- TASK_CARGO
           end
         else
           if Action == "Pickup" then
-            self:__RouteToPickupZone( -0.1 )
+            self:__RouteToPickup( -0.1, self.Cargo )
           else
-            self:__RouteToDeployZone( -0.1 )
+            self:__RouteToDeploy( -0.1, self.Cargo )
           end
         end
       end
@@ -70296,7 +70336,7 @@ do -- TASK_CARGO
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       
       if self.Cargo:IsAlive() then
-        if self.Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
+        if self.Cargo:IsInReportRadius( TaskUnit:GetPointVec2() ) then
           if TaskUnit:InAir() then
             self:__Land( -0.1, Action )
           else
@@ -70304,9 +70344,9 @@ do -- TASK_CARGO
           end
         else
           if Action == "Pickup" then
-            self:__RouteToPickupZone( -0.1 )
+            self:__RouteToPickup( -0.1, self.Cargo )
           else
-            self:__RouteToDeployZone( -0.1 )
+            self:__RouteToDeploy( -0.1, self.Cargo )
           end
         end
       end
@@ -70357,6 +70397,8 @@ do -- TASK_CARGO
     -- @param Tasking.Task_Cargo#TASK_CARGO Task
     function Fsm:onafterBoarded( TaskUnit, Task, From, Event, To, Cargo  )
       
+      self:F( { Cargo = Cargo } )
+
       local TaskUnitName = TaskUnit:GetName()
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
 
@@ -70372,6 +70414,8 @@ do -- TASK_CARGO
     -- @param Tasking.Task_Cargo#TASK_CARGO Task
     function Fsm:onenterLoaded( TaskUnit, Task, From, Event, To, Cargo )
       
+      self:F( { Cargo = Cargo } )
+      
       local TaskUnitName = TaskUnit:GetName()
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
       
@@ -70383,14 +70427,6 @@ do -- TASK_CARGO
       TaskUnit:AddCargo( Cargo )
 
       self:__SelectAction( 1 )
-      
-      -- TODO:I need to find a more decent solution for this. 
-      Task:E( { CargoPickedUp = Task.CargoPickedUp } )
-      if Cargo:IsAlive() then
-        if Task.CargoPickedUp then
-          Task:CargoPickedUp( TaskUnit, Cargo )
-        end
-      end
       
     end
     
