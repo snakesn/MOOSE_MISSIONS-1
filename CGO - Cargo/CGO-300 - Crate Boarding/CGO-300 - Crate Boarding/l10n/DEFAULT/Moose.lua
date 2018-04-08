@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-07T17:01:49.0000000Z-6c425752360e5fd834f42f62a246213c088ffbcd ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-08T09:02:59.0000000Z-1e91e11e0f170c05fa3b8b422fb2fc0fa43557e3 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -69899,6 +69899,61 @@ do -- TASK_CARGO
     self.CargoLimit = 10
     
     self.DeployZones = {} -- setmetatable( {}, { __mode = "v" } ) -- weak table on value
+
+    self:AddTransition( "*", "Deployed", "*" )
+    
+    --- Deployed Handler OnBefore for Type
+    -- @function [parent=#Type] OnBeforeDeployed
+    -- @param #Type self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @return #boolean
+    
+    --- Deployed Handler OnAfter for Type
+    -- @function [parent=#Type] OnAfterDeployed
+    -- @param #Type self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    
+    --- Deployed Trigger for Type
+    -- @function [parent=#Type] Deployed
+    -- @param #Type self
+    
+    --- Deployed Asynchronous Trigger for Type
+    -- @function [parent=#Type] __Deployed
+    -- @param #Type self
+    -- @param #number Delay
+    
+    
+    self:AddTransition( "*", "PickedUp", "*" )
+
+    --- PickedUp Handler OnBefore for Type
+    -- @function [parent=#Type] OnBeforePickedUp
+    -- @param #Type self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @return #boolean
+    
+    --- PickedUp Handler OnAfter for Type
+    -- @function [parent=#Type] OnAfterPickedUp
+    -- @param #Type self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    
+    --- PickedUp Trigger for Type
+    -- @function [parent=#Type] PickedUp
+    -- @param #Type self
+    
+    --- PickedUp Asynchronous Trigger for Type
+    -- @function [parent=#Type] __PickedUp
+    -- @param #Type self
+    -- @param #number Delay
+    
+    
 
     
     local Fsm = self:GetUnitProcess()
