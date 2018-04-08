@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-07T12:22:58.0000000Z-35c4c07c0f51a8df3dfefdf302b2ceec25599d75 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-07T17:01:49.0000000Z-6c425752360e5fd834f42f62a246213c088ffbcd ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -5154,6 +5154,7 @@ end
 EVENT = {
   ClassName = "EVENT",
   ClassID = 0,
+  MissionEnd = false,
 }
 
 world.event.S_EVENT_NEW_CARGO = world.event.S_EVENT_MAX + 1000
@@ -5728,8 +5729,13 @@ function EVENT:onEvent( Event )
   if self and 
      self.Events and 
      self.Events[Event.id] and
+     self.MissionEnd == false and
      ( Event.initiator ~= nil or ( Event.initiator == nil and Event.id ~= EVENTS.PlayerLeaveUnit ) ) then
 
+    if Event.id and Event.id == EVENTS.MissionEnd then
+      self.MissionEnd = true
+    end
+    
     if Event.initiator then    
       
       Event.IniObjectCategory = Event.initiator:getCategory()
@@ -18348,6 +18354,10 @@ do -- FSM
     return self.current
   end
   
+  function FSM:GetCurrentState()
+    return self.current
+  end
+  
   
   function FSM:Is( State )
     return self.current == State
@@ -28302,6 +28312,9 @@ function UNIT:GetCallsign()
   
   if DCSUnit then
     local UnitCallSign = DCSUnit:getCallsign()
+    if UnitCallSign == "" then
+      UnitCallSign = DCSUnit:getName()
+    end
     return UnitCallSign
   end
   
@@ -30182,7 +30195,6 @@ do -- CARGO
     self:AddTransition( "*", "Destroyed", "Destroyed" )
     self:AddTransition( "*", "Respawn", "UnLoaded" )
   
-  
     self.Type = Type
     self.Name = Name
     self.Weight = Weight or 0
@@ -30192,6 +30204,9 @@ do -- CARGO
     self.Slingloadable = false
     self.Moveable = false
     self.Containable = false
+    self.LoadAction = ""
+    
+    self.CargoLimit = 0
     
     self.LoadRadius = LoadRadius or 500
     self.NearRadius = NearRadius or 25
@@ -30217,6 +30232,12 @@ do -- CARGO
     return CargoFound
   end  
   
+  --- Check if the cargo can be Slingloaded.
+  -- @param #CARGO self
+  function CARGO:CanSlingload()
+    return false
+  end
+  
   --- Check if the cargo can be Boarded.
   -- @param #CARGO self
   function CARGO:CanBoard()
@@ -30241,9 +30262,6 @@ do -- CARGO
     return true
   end
 
-
-
-  
   
   --- Destroy the cargo.
   -- @param #CARGO self
@@ -30278,13 +30296,26 @@ do -- CARGO
   function CARGO:GetCount()
     return 1
   end
-  
+
   --- Get the type of the Cargo.
   -- @param #CARGO self
   -- @return #string The type of the Cargo.
   function CARGO:GetType()
     return self.Type
   end
+
+    
+  --- Get the coalition of the Cargo.
+  -- @param #CARGO self
+  -- @return Coalition
+  function CARGO:GetCoalition()
+    if self:IsLoaded() then
+      return self.CargoCarrier:GetCoalition()
+    else
+      return self.CargoObject:GetCoalition()
+    end 
+  end
+
   
   --- Get the current coordinates of the Cargo.
   -- @param #CARGO self
@@ -30716,6 +30747,32 @@ do -- CARGO_REPRESENTABLE
     return self  
   end
   
+  --- Send a message to a @{Group} through a communication channel near the cargo.
+  -- @param #CARGO_REPRESENTABLE self
+  -- @param #string Message
+  -- @param Wrapper.Group#GROUP TaskGroup
+  -- @param #sring Name (optional) The name of the Group used as a prefix for the message to the Group. If not provided, there will be nothing shown.
+  function CARGO_REPRESENTABLE:MessageToGroup( Message, TaskGroup, Name )
+
+    local CoordinateZone = ZONE_RADIUS:New( "Zone" , self:GetCoordinate():GetVec2(), 500 )
+    CoordinateZone:Scan( { Object.Category.UNIT } )
+    for _, DCSUnit in pairs( CoordinateZone:GetScannedUnits() ) do
+      local NearUnit = UNIT:Find( DCSUnit )
+      self:F({NearUnit=NearUnit})
+      local NearUnitCoalition = NearUnit:GetCoalition()
+      local CargoCoalition = self:GetCoalition()
+      if NearUnitCoalition == CargoCoalition then
+        local Attributes = NearUnit:GetDesc()
+        self:F({Desc=Attributes})
+        if NearUnit:HasAttribute( "Trucks" ) then
+          MESSAGE:New( Message, 20, NearUnit:GetCallsign() .. " reporting - Cargo " .. self:GetName() ):ToGroup( TaskGroup )
+          break
+        end
+      end
+    end
+  
+  end
+
   
 end -- CARGO_REPRESENTABLE
 
@@ -30749,7 +30806,7 @@ do -- CARGO_REPORTABLE
   -- @param #sring Name (optional) The name of the Group used as a prefix for the message to the Group. If not provided, there will be nothing shown.
   function CARGO_REPORTABLE:MessageToGroup( Message, TaskGroup, Name )
   
-    MESSAGE:New( Message, 20, "Cargo " .. self:GetName() ):ToGroup( TaskGroup )
+    MESSAGE:New( Message, 20, "Cargo " .. self:GetName() .. " reporting" ):ToGroup( TaskGroup )
   
   end
 
@@ -31418,6 +31475,12 @@ do -- CARGO_SLINGLOAD
   end
   
   
+  --- Check if the cargo can be Slingloaded.
+  -- @param #CARGO self
+  function CARGO:CanSlingload()
+    return true
+  end
+  
   --- Check if the cargo can be Boarded.
   -- @param #CARGO_SLINGLOAD self
   function CARGO_SLINGLOAD:CanBoard()
@@ -31582,7 +31645,7 @@ do -- CARGO_CRATE
     self:F( { Type, Name, NearRadius } )
   
     self.CargoObject = CargoStatic
-  
+ 
     self:T( self.ClassName )
   
     -- Cargo objects are added to the _DATABASE and SET_CARGO objects.
@@ -31851,6 +31914,7 @@ function CARGO_GROUP:New( CargoGroup, Type, Name, LoadRadius )
 
 
   self:SetWeight( WeightGroup )
+  self.CargoLimit = 10
   
   self:T( { "Weight Cargo", WeightGroup } )
 
@@ -62171,16 +62235,21 @@ do -- ACT_ROUTE
   --- Set a Cancel Menu item.
   -- @param #ACT_ROUTE self
   -- @return #ACT_ROUTE
-  function ACT_ROUTE:SetMenuCancel( MenuGroup, MenuText, ParentMenu, MenuTime )
+  function ACT_ROUTE:SetMenuCancel( MenuGroup, MenuText, ParentMenu )
     
-    MENU_GROUP_COMMAND:New(
+    local MenuTime = timer.getTime() + 1
+    
+    self.CancelMenuGroupCommand = MENU_GROUP_COMMAND:New(
       MenuGroup,
       MenuText,
       ParentMenu,
       self.MenuCancel,
       self
-    ):SetTime(MenuTime)
-    
+    ):SetTime( MenuTime )
+
+    ParentMenu:SetTime( MenuTime )
+    ParentMenu:Remove( MenuTime )
+
     return self
   end
   
@@ -62254,7 +62323,9 @@ do -- ACT_ROUTE
 
   
   function ACT_ROUTE:MenuCancel()
-    self:Cancel()
+    self:F("Cancelled")
+    self.CancelMenuGroupCommand:Remove()
+    self:__Cancel( 1 )
   end
 
   --- Task Events
@@ -69836,17 +69907,17 @@ do -- TASK_CARGO
 
     Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "SelectAction", Rejected = "Reject" }  )
     
-    Fsm:AddTransition( { "Planned", "Assigned", "WaitingForCommand", "ArrivedAtPickup", "ArrivedAtDeploy", "Boarded", "UnBoarded", "Loaded", "UnLoaded", "Landed", "Boarding" }, "SelectAction", "*" )
+    Fsm:AddTransition( { "Planned", "Assigned", "Cancelled", "WaitingForCommand", "ArrivedAtPickup", "ArrivedAtDeploy", "Boarded", "UnBoarded", "Loaded", "UnLoaded", "Landed", "Boarding" }, "SelectAction", "*" )
 
     Fsm:AddTransition( "*", "RouteToPickup", "RoutingToPickup" )
     Fsm:AddProcess   ( "RoutingToPickup", "RouteToPickupPoint", ACT_ROUTE_POINT:New(), { Arrived = "ArriveAtPickup", Cancelled = "CancelRouteToPickup" } )
     Fsm:AddTransition( "Arrived", "ArriveAtPickup", "ArrivedAtPickup" )
-    Fsm:AddTransition( "Cancelled", "CancelRouteToPickup", "WaitingForCommand" )
+    Fsm:AddTransition( "Cancelled", "CancelRouteToPickup", "Cancelled" )
 
     Fsm:AddTransition( "*", "RouteToDeploy", "RoutingToDeploy" )
     Fsm:AddProcess   ( "RoutingToDeploy", "RouteToDeployZone", ACT_ROUTE_ZONE:New(), { Arrived = "ArriveAtDeploy", Cancelled = "CancelRouteToDeploy" } )
     Fsm:AddTransition( "Arrived", "ArriveAtDeploy", "ArrivedAtDeploy" )
-    Fsm:AddTransition( "Cancelled", "CancelRouteToDeploy", "WaitingForCommand" )
+    Fsm:AddTransition( "Cancelled", "CancelRouteToDeploy", "Cancelled" )
     
     Fsm:AddTransition( { "ArrivedAtPickup", "ArrivedAtDeploy", "Landing" }, "Land", "Landing" )
     Fsm:AddTransition( "Landing", "Landed", "Landed" )
@@ -69911,7 +69982,7 @@ do -- TASK_CARGO
             self:F( { CargoUnloaded = Cargo:IsUnLoaded(), CargoLoaded = Cargo:IsLoaded(), CargoItemCount = CargoItemCount } )
         
             if Cargo:IsUnLoaded() then
-              if CargoItemCount <= Task.CargoLimit then 
+              if CargoItemCount < 1 then 
                 if Cargo:IsInReportRadius( TaskUnit:GetPointVec2() ) then
                   local NotInDeployZones = true
                   for DeployZoneName, DeployZone in pairs( Task.DeployZones ) do
@@ -69923,18 +69994,26 @@ do -- TASK_CARGO
                     if not TaskUnit:InAir() then
                       if Cargo:CanBoard() == true then
                         if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
-                          Cargo:Report( "Reporting for boarding at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "board", TaskUnit:GetGroup() )
+                          Cargo:Report( "ready for boarding at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "board", TaskUnit:GetGroup() )
                           MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Board cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuBoardCargo, self, Cargo ):SetTime(MenuTime)
                         else
-                          Cargo:Report( "Reporting at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                          Cargo:Report( "Board at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
                         end
                       else
                         if Cargo:CanLoad() == true then
                           if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
-                            Cargo:Report( "Reporting for loading at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "load", TaskUnit:GetGroup() )
+                            Cargo:Report( "ready for loading at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "load", TaskUnit:GetGroup() )
                             MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Load cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuLoadCargo, self, Cargo ):SetTime(MenuTime)
                           else
-                            Cargo:Report( "Reporting at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                            Cargo:Report( "Load at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                          end
+                        else
+                          if Cargo:CanSlingload() == true then
+                            if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
+                              Cargo:Report( "ready for slingloading at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "slingload", TaskUnit:GetGroup() )
+                            else
+                              Cargo:Report( "Slingload at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                            end
                           end
                         end
                       end
@@ -69944,9 +70023,13 @@ do -- TASK_CARGO
                     end
                   end
                 else
-                  MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Route to Pickup cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuRouteToPickup, self, Cargo ):SetTime(MenuTime)
-                  TaskUnit.Menu:SetTime( MenuTime )
-                  Cargo:ReportResetAll( TaskUnit:GetGroup() )
+                  if self:Is( "RoutingToPickup" ) then
+                  else
+                    self:F("route menu set")
+                    MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Route to Pickup cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuRouteToPickup, self, Cargo ):SetTime(MenuTime)
+                    TaskUnit.Menu:SetTime( MenuTime )
+                    Cargo:ReportResetAll( TaskUnit:GetGroup() )
+                  end
                 end
               end
               -- Cargo in deployzones are flagged as deployed.
@@ -70067,7 +70150,6 @@ do -- TASK_CARGO
     function Fsm:onafterArriveAtPickup( TaskUnit, Task )
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       if self.Cargo:IsAlive() then
-        self.Cargo:Smoke( Task:GetSmokeColor(), 15 )
         if TaskUnit:IsAir() then
           Task:GetMission():GetCommandCenter():MessageToGroup( "Land", TaskUnit:GetGroup() )
           self:__Land( -0.1, "Pickup" )
@@ -70084,6 +70166,7 @@ do -- TASK_CARGO
     function Fsm:onafterCancelRouteToPickup( TaskUnit, Task )
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       
+      Task:GetMission():GetCommandCenter():MessageToGroup( "Cancelled routing to Cargo " .. self.Cargo:GetName(), TaskUnit:GetGroup() )
       self:__SelectAction( -0.1 )
     end
 
@@ -70121,6 +70204,7 @@ do -- TASK_CARGO
     function Fsm:onafterCancelRouteToDeploy( TaskUnit, Task )
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       
+      Task:GetMission():GetCommandCenter():MessageToGroup( "Cancelled routing to deploy zone " .. self.DeployZone:GetName(), TaskUnit:GetGroup() )
       self:__SelectAction( -0.1 )
     end
 
@@ -70180,8 +70264,7 @@ do -- TASK_CARGO
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       
       if Cargo and Cargo:IsAlive() then
-        self.Cargo = Cargo -- Core.Cargo#CARGO_GROUP
-        self:__Board( -0.1 )
+        self:__Board( -0.1, Cargo )
       end
     end
 
@@ -70189,22 +70272,22 @@ do -- TASK_CARGO
     --- @param #FSM_PROCESS self
     -- @param Wrapper.Unit#UNIT TaskUnit
     -- @param Tasking.Task_Cargo#TASK_CARGO Task
-    function Fsm:onafterBoard( TaskUnit, Task )
+    function Fsm:onafterBoard( TaskUnit, Task, From, Event, To, Cargo  )
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
 
-      function self.Cargo:OnEnterLoaded( From, Event, To, TaskUnit, TaskProcess )
+      function Cargo:OnEnterLoaded( From, Event, To, TaskUnit, TaskProcess )
         self:F({From, Event, To, TaskUnit, TaskProcess })
-        TaskProcess:__Boarded( 0.1 )
+        TaskProcess:__Boarded( 0.1, self )
       end
 
-      if self.Cargo:IsAlive() then
-        if self.Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
+      if Cargo:IsAlive() then
+        if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
           if TaskUnit:InAir() then
             --- ABORT the boarding. Split group if any and go back to select action.
           else
-            self.Cargo:MessageToGroup( "Boarding ...", TaskUnit:GetGroup() )
-            if not self.Cargo:IsBoarding() then
-              self.Cargo:Board( TaskUnit, 20, self )
+            Cargo:MessageToGroup( "Boarding ...", TaskUnit:GetGroup() )
+            if not Cargo:IsBoarding() then
+              Cargo:Board( TaskUnit, 20, self )
             end
           end
         else
@@ -70217,14 +70300,14 @@ do -- TASK_CARGO
     --- @param #FSM_PROCESS self
     -- @param Wrapper.Unit#UNIT TaskUnit
     -- @param Tasking.Task_Cargo#TASK_CARGO Task
-    function Fsm:onafterBoarded( TaskUnit, Task )
+    function Fsm:onafterBoarded( TaskUnit, Task, From, Event, To, Cargo  )
       
       local TaskUnitName = TaskUnit:GetName()
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
-      
-      self.Cargo:MessageToGroup( "Boarded ...", TaskUnit:GetGroup() )
 
-      self:Load( self.Cargo )
+      Cargo:MessageToGroup( "Boarded ...", TaskUnit:GetGroup() )
+      
+      self:__Load( -0.1, Cargo )
       
     end
     
@@ -70232,15 +70315,17 @@ do -- TASK_CARGO
     --- @param #FSM_PROCESS self
     -- @param Wrapper.Unit#UNIT TaskUnit
     -- @param Tasking.Task_Cargo#TASK_CARGO Task
-    function Fsm:onafterLoad( TaskUnit, Task, From, Event, To, Cargo )
+    function Fsm:onenterLoaded( TaskUnit, Task, From, Event, To, Cargo )
       
       local TaskUnitName = TaskUnit:GetName()
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
       
       if not Cargo:IsLoaded() then
         Cargo:Load( TaskUnit )
-        TaskUnit:AddCargo( Cargo )
       end
+
+      Cargo:MessageToGroup( "Loaded ...", TaskUnit:GetGroup() )
+      TaskUnit:AddCargo( Cargo )
 
       self:__SelectAction( 1 )
       
@@ -70302,9 +70387,9 @@ do -- TASK_CARGO
       if self.Cargo:IsAlive() then
         self.Cargo:MessageToGroup( "UnBoarding ...", TaskUnit:GetGroup() )
         if DeployZone then
-          self.Cargo:UnBoard( DeployZone:GetPointVec2(), 400, self )
+          self.Cargo:UnBoard( DeployZone:GetCoordinate():GetRandomCoordinateInRadius( 25, 10 ), 400, self )
         else
-          self.Cargo:UnBoard( TaskUnit:GetPointVec2():AddX(60), 400, self )
+          self.Cargo:UnBoard( TaskUnit:GetCoordinate():GetRandomCoordinateInRadius( 25, 10 ), 400, self )
         end          
       end
     end
@@ -70335,9 +70420,9 @@ do -- TASK_CARGO
       
       if not Cargo:IsUnLoaded() then
         if DeployZone then
-          Cargo:UnLoad( DeployZone:GetPointVec2(), 400, self )
+          Cargo:UnLoad( DeployZone:GetCoordinate():GetRandomCoordinateInRadius( 25, 10 ), 400, self )
         else
-          Cargo:UnLoad( TaskUnit:GetPointVec2():AddX(60), 400, self )
+          Cargo:UnLoad( TaskUnit:GetCoordinate():GetRandomCoordinateInRadius( 25, 10 ), 400, self )
         end          
       end
       TaskUnit:RemoveCargo( Cargo )
@@ -70414,6 +70499,7 @@ do -- TASK_CARGO
     ActRouteCargo:SetRange( Cargo:GetLoadRadius() )
     ActRouteCargo:SetMenuCancel( TaskUnit:GetGroup(), "Cancel Routing to Cargo " .. Cargo:GetName(), TaskUnit.Menu )
     ActRouteCargo:Start()
+
     return self
   end
   
@@ -70431,6 +70517,7 @@ do -- TASK_CARGO
     ActRouteDeployZone:SetZone( DeployZone )
     ActRouteDeployZone:SetMenuCancel( TaskUnit:GetGroup(), "Cancel Routing to Deploy Zone" .. DeployZone:GetName(), TaskUnit.Menu )
     ActRouteDeployZone:Start()
+    
     return self
   end
    
