@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-09T10:57:42.0000000Z-6d02b566791fb0ce813c46be32d2ea436785df2c ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-09T11:31:35.0000000Z-6e9c3ce4f591d6eea5ad8f4a64eb27130fcafff2 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -29166,7 +29166,6 @@ function CLIENT:ShowBriefing()
     if self.ClientBriefing then
       Briefing = Briefing .. self.ClientBriefing
     end
-    Briefing = Briefing .. " Press [LEFT ALT]+[B] to view the complete mission briefing."
     self:Message( Briefing, 60, "Briefing" )
   end
 
