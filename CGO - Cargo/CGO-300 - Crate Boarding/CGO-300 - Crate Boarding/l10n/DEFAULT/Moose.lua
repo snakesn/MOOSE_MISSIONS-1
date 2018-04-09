@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-08T20:39:59.0000000Z-5b40ae21e28cd46d376856dd286168b2bd454c7c ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-09T10:57:42.0000000Z-6d02b566791fb0ce813c46be32d2ea436785df2c ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -70424,7 +70424,7 @@ do -- TASK_CARGO
     --- @param #FSM_PROCESS self
     -- @param Wrapper.Unit#UNIT TaskUnit
     -- @param Tasking.Task_Cargo#TASK_CARGO Task
-    function Fsm:onenterLoaded( TaskUnit, Task, From, Event, To, Cargo )
+    function Fsm:onafterLoad( TaskUnit, Task, From, Event, To, Cargo )
       
       local TaskUnitName = TaskUnit:GetName()
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
@@ -70436,9 +70436,9 @@ do -- TASK_CARGO
       Cargo:MessageToGroup( "Loaded ...", TaskUnit:GetGroup() )
       TaskUnit:AddCargo( Cargo )
 
-      --Task:CargoPickedUp( TaskUnit, Cargo )
+      Task:CargoPickedUp( TaskUnit, Cargo )
 
-      self:SelectAction( )
+      self:SelectAction( -1 )
       
     end
     
