@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-09T11:31:35.0000000Z-6e9c3ce4f591d6eea5ad8f4a64eb27130fcafff2 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-09T11:44:21.0000000Z-2bfbd5998f32042ca1fc7051b52717d7a12736a4 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -5774,6 +5774,16 @@ function EVENT:onEvent( Event )
         Event.IniTypeName = Event.IniDCSUnit:getTypeName()
       end
 
+      if Event.IniObjectCategory == Object.Category.CARGO then
+        Event.IniDCSUnit = Event.initiator
+        Event.IniDCSUnitName = Event.IniDCSUnit:getName()
+        Event.IniUnitName = Event.IniDCSUnitName
+        Event.IniUnit = CARGO:FindByName( Event.IniDCSUnitName )
+        Event.IniCoalition = Event.IniDCSUnit:getCoalition()
+        Event.IniCategory = Event.IniDCSUnit:getDesc().category
+        Event.IniTypeName = Event.IniDCSUnit:getTypeName()
+      end
+
       if Event.IniObjectCategory == Object.Category.SCENERY then
         Event.IniDCSUnit = Event.initiator
         Event.IniDCSUnitName = Event.IniDCSUnit:getName()
@@ -7083,6 +7093,7 @@ do -- MENU_BASE
     self.Menus = {}
     self.MenuCount = 0
     self.MenuTime = timer.getTime()
+    self.MenuRemoveParent = false
   	
     if self.ParentMenu then
       self.ParentMenu.Menus = self.ParentMenu.Menus or {}
@@ -7096,14 +7107,30 @@ do -- MENU_BASE
     if self.ParentMenu then
       self.ParentMenu.Menus = self.ParentMenu.Menus or {}
       self.ParentMenu.Menus[MenuText] = Menu
+      self.ParentMenu.MenuCount = self.ParentMenu.MenuCount + 1
     end
   end
 
   function MENU_BASE:ClearParentMenu( MenuText )
     if self.ParentMenu and self.ParentMenu.Menus[MenuText] then
       self.ParentMenu.Menus[MenuText] = nil
+      self.ParentMenu.MenuCount = self.ParentMenu.MenuCount - 1
+      if self.ParentMenu.MenuCount == 0 then
+        --self.ParentMenu:Remove()
+      end
     end
   end
+
+  --- Sets a @{Menu} to remove automatically the parent menu when the menu removed is the last child menu of that parent @{Menu}.
+  -- @param #MENU_BASE self
+  -- @param #boolean RemoveParent If true, the parent menu is automatically removed when this menu is the last child menu of that parent @{Menu}.
+  -- @return #MENU_BASE
+  function MENU_BASE:SetRemoveParent( RemoveParent )
+    self:F( { RemoveParent } )
+    self.MenuRemoveParent = RemoveParent
+    return self
+  end
+
   
   --- Gets a @{Menu} from a parent @{Menu}
   -- @param #MENU_BASE self
@@ -10953,7 +10980,7 @@ end
 -- @param Core.Base#BASE Object
 -- @return Core.Base#BASE The added BASE Object.
 function SET_BASE:Add( ObjectName, Object )
-  self:F3( { ObjectName = ObjectName, Object = Object } )
+  self:F( { ObjectName = ObjectName, Object = Object } )
 
   -- Ensure that the existing element is removed from the Set before a new one is inserted to the Set
   if self.Set[ObjectName] then
@@ -15129,7 +15156,7 @@ function SET_CARGO:IsIncludeObject( MCargo ) --R2.1
           MCargoCoalition = true
         end
       end
-      self:T( { "Evaluated Coalition", MCargoCoalition } )
+      self:F( { "Evaluated Coalition", MCargoCoalition } )
       MCargoInclude = MCargoInclude and MCargoCoalition
     end
 
@@ -15141,7 +15168,7 @@ function SET_CARGO:IsIncludeObject( MCargo ) --R2.1
           MCargoType = true
         end
       end
-      self:T( { "Evaluated Type", MCargoType } )
+      self:F( { "Evaluated Type", MCargoType } )
       MCargoInclude = MCargoInclude and MCargoType
     end
     
@@ -15153,7 +15180,7 @@ function SET_CARGO:IsIncludeObject( MCargo ) --R2.1
           MCargoPrefix = true
         end
       end
-      self:T( { "Evaluated Prefix", MCargoPrefix } )
+      self:F( { "Evaluated Prefix", MCargoPrefix } )
       MCargoInclude = MCargoInclude and MCargoPrefix
     end
   end
@@ -15166,6 +15193,8 @@ end
 -- @param #SET_CARGO self
 -- @param Core.Event#EVENTDATA EventData
 function SET_CARGO:OnEventNewCargo( EventData ) --R2.1
+
+  self:F( { "New Cargo", EventData } )
 
   if EventData.Cargo then
     if EventData.Cargo and self:IsIncludeObject( EventData.Cargo ) then
@@ -21891,6 +21920,7 @@ function SPAWNSTATIC:NewFromType( SpawnTypeName, SpawnShapeName, SpawnCategory, 
   return self
 end
 
+
 --- Creates a new @{Static} at the original position.
 -- @param #SPAWNSTATIC self
 -- @param #number Heading The heading of the static, which is a number in degrees from 0 to 360.
@@ -21964,6 +21994,75 @@ function SPAWNSTATIC:SpawnFromPointVec2( PointVec2, Heading, NewName ) --R2.1
   
   return nil
 end
+
+
+--- Creates the original @{Static} at a POINT_VEC2.
+-- @param #SPAWNSTATIC self
+-- @param Core.Point#POINT_VEC2 PointVec2 The 2D coordinate where to spawn the static.
+-- @param #number Heading The heading of the static, which is a number in degrees from 0 to 360.
+-- @param #string (optional) The name of the new static.
+-- @return #SPAWNSTATIC
+function SPAWNSTATIC:ReSpawn()
+  
+  local StaticTemplate = _DATABASE:GetStaticUnitTemplate( self.SpawnTemplatePrefix )
+  
+  if StaticTemplate then
+
+    local CountryID = self.CountryID
+    local CountryName = _DATABASE.COUNTRY_NAME[CountryID]
+    
+    StaticTemplate.units = nil
+    StaticTemplate.route = nil
+    StaticTemplate.groupId = nil
+    
+    StaticTemplate.CountryID = nil
+    StaticTemplate.CoalitionID = nil
+    StaticTemplate.CategoryID = nil
+    
+    local Static = coalition.addStaticObject( CountryID, StaticTemplate )
+    
+    return Static
+  end
+  
+  return nil
+end
+
+
+--- Creates the original @{Static} at a POINT_VEC2.
+-- @param #SPAWNSTATIC self
+-- @param Core.Point#COORDINATE Coordinate The 2D coordinate where to spawn the static.
+-- @param #number Heading The heading of the static, which is a number in degrees from 0 to 360.
+-- @return #SPAWNSTATIC
+function SPAWNSTATIC:ReSpawnAt( Coordinate, Heading )
+  
+  local StaticTemplate = _DATABASE:GetStaticUnitTemplate( self.SpawnTemplatePrefix )
+  
+  if StaticTemplate then
+
+    local CountryID = self.CountryID
+    local CountryName = _DATABASE.COUNTRY_NAME[CountryID]
+    
+    StaticTemplate.x = Coordinate.x
+    StaticTemplate.y = Coordinate.z
+
+    StaticTemplate.units = nil
+    StaticTemplate.route = nil
+    StaticTemplate.groupId = nil
+    
+    StaticTemplate.heading = Heading and ( ( Heading / 180 ) * math.pi ) or StaticTemplate.heading
+
+    StaticTemplate.CountryID = nil
+    StaticTemplate.CoalitionID = nil
+    StaticTemplate.CategoryID = nil
+    
+    local Static = coalition.addStaticObject( CountryID, StaticTemplate )
+    
+    return Static
+  end
+  
+  return nil
+end
+
 
 --- Creates a new @{Static} from a @{Zone}.
 -- @param #SPAWNSTATIC self
@@ -28177,9 +28276,9 @@ end
 --  * Then it will respawn the re-modelled group.
 --  
 -- @param #UNIT self
--- @param Dcs.DCSTypes#Vec3 SpawnVec3 The position where to Spawn the new Unit at.
+-- @param Core.Point#COORDINATE Coordinate The position where to Spawn the new Unit at.
 -- @param #number Heading The heading of the unit respawn.
-function UNIT:ReSpawn( SpawnVec3, Heading )
+function UNIT:ReSpawnAt( Coordinate, Heading )
 
   self:T( self:Name() )
   local SpawnGroupTemplate = UTILS.DeepCopy( _DATABASE:GetGroupTemplateFromUnitName( self:Name() ) )
@@ -28191,8 +28290,8 @@ function UNIT:ReSpawn( SpawnVec3, Heading )
   if SpawnGroup then
   
     local Vec3 = SpawnGroup:GetVec3()
-    SpawnGroupTemplate.x = SpawnVec3.x
-    SpawnGroupTemplate.y = SpawnVec3.z
+    SpawnGroupTemplate.x = Coordinate.x
+    SpawnGroupTemplate.y = Coordinate.z
     
     self:F( #SpawnGroupTemplate.units )
     for UnitID, UnitData in pairs( SpawnGroup:GetUnits() ) do
@@ -28215,9 +28314,9 @@ function UNIT:ReSpawn( SpawnVec3, Heading )
     SpawnGroupTemplate.units[UnitTemplateID].unitId = nil
     if UnitTemplateData.name == self:Name() then
       self:T("Adjusting")
-      SpawnGroupTemplate.units[UnitTemplateID].alt = SpawnVec3.y
-      SpawnGroupTemplate.units[UnitTemplateID].x = SpawnVec3.x
-      SpawnGroupTemplate.units[UnitTemplateID].y = SpawnVec3.z
+      SpawnGroupTemplate.units[UnitTemplateID].alt = Coordinate.y
+      SpawnGroupTemplate.units[UnitTemplateID].x = Coordinate.x
+      SpawnGroupTemplate.units[UnitTemplateID].y = Coordinate.z
       SpawnGroupTemplate.units[UnitTemplateID].heading = Heading
       self:F( { UnitTemplateID, SpawnGroupTemplate.units[UnitTemplateID], SpawnGroupTemplate.units[UnitTemplateID] } )
     else
@@ -28332,18 +28431,18 @@ end
 function UNIT:GetPlayerName()
   self:F2( self.UnitName )
 
-  local DCSUnit = self:GetDCSObject()
+  local DCSUnit = self:GetDCSObject() -- Dcs.DCSUnit#Unit
   
   if DCSUnit then
   
     local PlayerName = DCSUnit:getPlayerName()
-    if PlayerName == nil then
-      PlayerName = ""
+    if PlayerName == nil or PlayerName == "" then
+      PlayerName = "Player" .. DCSUnit:getID()
     end
     return PlayerName
   end
 
-    return nil
+  return nil
 
 end
 
@@ -29600,15 +29699,24 @@ end
 -- @param #UNIT self
 -- @param Core.Point#COORDINATE Coordinate The coordinate where to spawn the new Static.
 -- @param #number Heading The heading of the unit respawn.
-function STATIC:ReSpawn( Coordinate, Heading )
+function STATIC:SpawnAt( Coordinate, Heading )
 
-
-  -- todo: need to fix country
   local SpawnStatic = SPAWNSTATIC:NewFromStatic( self.StaticName )
   
   SpawnStatic:SpawnFromPointVec2( Coordinate, Heading, self.StaticName )
 end
 
+
+--- Respawn the @{Unit} using a (tweaked) template of the parent Group.
+-- @param #UNIT self
+-- @param Core.Point#COORDINATE Coordinate The coordinate where to spawn the new Static.
+-- @param #number Heading The heading of the unit respawn.
+function STATIC:ReSpawn()
+
+  local SpawnStatic = SPAWNSTATIC:NewFromStatic( self.StaticName )
+  
+  SpawnStatic:ReSpawn()
+end
 --- **Wrapper** -- AIRBASE is a wrapper class to handle the DCS Airbase objects.
 -- 
 -- ===
@@ -30195,6 +30303,7 @@ do -- CARGO
     self:AddTransition( "*", "Damaged", "Damaged" )
     self:AddTransition( "*", "Destroyed", "Destroyed" )
     self:AddTransition( "*", "Respawn", "UnLoaded" )
+    self:AddTransition( "*", "Reset", "UnLoaded" )
   
     self.Type = Type
     self.Name = Name
@@ -30685,6 +30794,22 @@ do -- CARGO
     self.Reported[CarrierGroup] = nil
   end
   
+  --- Respawn the cargo when destroyed
+  -- @param #CARGO self
+  -- @param #boolean RespawnDestroyed
+  function CARGO:RespawnOnDestroyed( RespawnDestroyed )
+
+    if RespawnDestroyed then
+      self.onenterDestroyed = function( self )
+        self:Respawn()
+      end
+    else
+      self.onenterDestroyed = nil
+    end
+      
+  end
+  
+
   
 
 end -- CARGO
@@ -31140,7 +31265,7 @@ do -- CARGO_UNIT
           
           -- Respawn the group...
           if self.CargoObject then
-            self.CargoObject:ReSpawn( FromPointVec2:GetVec3(), CargoDeployHeading )
+            self.CargoObject:ReSpawnAt( FromPointVec2, CargoDeployHeading )
             self:F( { "CargoUnits:", self.CargoObject:GetGroup():GetName() } )
             self.CargoCarrier = nil
       
@@ -31244,7 +31369,7 @@ do -- CARGO_UNIT
   
       -- Respawn the group...
       if self.CargoObject then
-        self.CargoObject:ReSpawn( ToPointVec2:GetVec3(), 0 )
+        self.CargoObject:ReSpawnAt( ToPointVec2, 0 )
         self.CargoCarrier = nil
       end
       
@@ -31474,6 +31599,26 @@ do -- CARGO_SLINGLOAD
   
     return self
   end
+
+
+  --- @param #CARGO_SLINGLOAD self
+  -- @param Core.Event#EVENTDATA EventData 
+  function CARGO_SLINGLOAD:OnEventCargoDead( EventData )
+
+    local Destroyed = false
+  
+    if self:IsDestroyed() or self:IsUnLoaded() then
+      if self.CargoObject:GetName() == EventData.IniUnitName then
+        Destroyed = true
+      end
+    end
+    
+    if Destroyed then
+      self:I( { "Cargo crate destroyed: " .. self.CargoObject:GetName() } )
+      self:Destroyed()
+    end
+  
+  end
   
   
   --- Check if the cargo can be Slingloaded.
@@ -31606,10 +31751,35 @@ do -- CARGO_SLINGLOAD
   -- @param #CARGO_SLINGLOAD self
   function CARGO_SLINGLOAD:Respawn()
 
-    self:F( { "Respawning" } )
+    self:F( { "Respawning slingload " .. self:GetName() } )
 
-    self:SetDeployed( false )
-    self:SetStartState( "UnLoaded" )
+
+    -- Respawn the group...
+    if self.CargoObject then
+      self.CargoObject:ReSpawn() -- A cargo destroy crates a DEAD event.
+      self:__Reset( -0.1 )
+    end
+
+    
+  end
+
+
+  --- Respawn the CargoGroup.
+  -- @param #CARGO_SLINGLOAD self
+  function CARGO_SLINGLOAD:onafterReset()
+
+    self:F( { "Reset slingload " .. self:GetName() } )
+
+
+    -- Respawn the group...
+    if self.CargoObject then
+      self:SetDeployed( false )
+      self:SetStartState( "UnLoaded" )
+      self.CargoCarrier = nil
+      -- Cargo objects are added to the _DATABASE and SET_CARGO objects.
+      _EVENTDISPATCHER:CreateEventNewCargo( self )
+    end
+
     
   end
   
@@ -31681,6 +31851,33 @@ do -- CARGO_CRATE
     return self
   end
   
+  --- @param #CARGO_CRATE self
+  -- @param Core.Event#EVENTDATA EventData 
+  function CARGO_CRATE:OnEventCargoDead( EventData )
+
+    local Destroyed = false
+  
+    if self:IsDestroyed() or self:IsUnLoaded() or self:IsBoarding() then
+      if self.CargoObject:GetName() == EventData.IniUnitName then
+        Destroyed = true
+      end
+    else
+      if self:IsLoaded() then
+        local CarrierName = self.CargoCarrier:GetName()
+        if CarrierName == EventData.IniDCSUnitName then
+          MESSAGE:New( "Cargo is lost from carrier " .. CarrierName, 15 ):ToAll()
+          Destroyed = true
+          self.CargoCarrier:ClearCargo()
+        end
+      end
+    end
+    
+    if Destroyed then
+      self:I( { "Cargo crate destroyed: " .. self.CargoObject:GetName() } )
+      self:Destroyed()
+    end
+  
+  end
   
   
   --- Enter UnLoaded State.
@@ -31706,7 +31903,7 @@ do -- CARGO_CRATE
   
       -- Respawn the group...
       if self.CargoObject then
-        self.CargoObject:ReSpawn( ToPointVec2, 0 )
+        self.CargoObject:ReSpawnAt( ToPointVec2, 0 )
         self.CargoCarrier = nil
       end
       
@@ -31844,15 +32041,39 @@ do -- CARGO_CRATE
     return self:IsNear( CargoCarrier:GetCoordinate(), NearRadius )
   end
 
-
   --- Respawn the CargoGroup.
   -- @param #CARGO_CRATE self
   function CARGO_CRATE:Respawn()
 
-    self:F( { "Respawning" } )
+    self:F( { "Respawning crate " .. self:GetName() } )
 
-    self:SetDeployed( false )
-    self:SetStartState( "UnLoaded" )
+
+    -- Respawn the group...
+    if self.CargoObject then
+      self.CargoObject:ReSpawn() -- A cargo destroy crates a DEAD event.
+      self:__Reset( -0.1 )
+    end
+
+    
+  end
+
+
+  --- Respawn the CargoGroup.
+  -- @param #CARGO_CRATE self
+  function CARGO_CRATE:onafterReset()
+
+    self:F( { "Reset crate " .. self:GetName() } )
+
+
+    -- Respawn the group...
+    if self.CargoObject then
+      self:SetDeployed( false )
+      self:SetStartState( "UnLoaded" )
+      self.CargoCarrier = nil
+      -- Cargo objects are added to the _DATABASE and SET_CARGO objects.
+      _EVENTDISPATCHER:CreateEventNewCargo( self )
+    end
+
     
   end
   
@@ -31898,82 +32119,82 @@ do -- CARGO_GROUP
     ClassName = "CARGO_GROUP",
   }
 
---- CARGO_GROUP constructor.
--- This make a new CARGO_GROUP from a @{Group} object.
--- It will "ungroup" the group object within the sim, and will create a @{Set} of individual Unit objects.
--- @param #CARGO_GROUP self
--- @param Wrapper.Group#GROUP CargoGroup
--- @param #string Type
--- @param #string Name
--- @param #number LoadRadius (optional)
--- @param #number NearRadius (optional)
--- @return #CARGO_GROUP
-function CARGO_GROUP:New( CargoGroup, Type, Name, LoadRadius )
-  local self = BASE:Inherit( self, CARGO_REPORTABLE:New( Type, Name, 0, LoadRadius ) ) -- #CARGO_GROUP
-  self:F( { Type, Name, LoadRadius } )
-
-  self.CargoSet = SET_CARGO:New()
+  --- CARGO_GROUP constructor.
+  -- This make a new CARGO_GROUP from a @{Group} object.
+  -- It will "ungroup" the group object within the sim, and will create a @{Set} of individual Unit objects.
+  -- @param #CARGO_GROUP self
+  -- @param Wrapper.Group#GROUP CargoGroup
+  -- @param #string Type
+  -- @param #string Name
+  -- @param #number LoadRadius (optional)
+  -- @param #number NearRadius (optional)
+  -- @return #CARGO_GROUP
+  function CARGO_GROUP:New( CargoGroup, Type, Name, LoadRadius )
+    local self = BASE:Inherit( self, CARGO_REPORTABLE:New( Type, Name, 0, LoadRadius ) ) -- #CARGO_GROUP
+    self:F( { Type, Name, LoadRadius } )
   
-  self:SetDeployed( false )
-  
-  local WeightGroup = 0
-  
-  self.GroupName = CargoGroup:GetName()
-  self.CargoTemplate = UTILS.DeepCopy( _DATABASE:GetGroupTemplate( self.GroupName ) )
-  
-  CargoGroup:Destroy()
-  
-  -- We iterate through the group template and for each unit in the template, we create a new group with one unit.
-  for UnitID, UnitTemplate in pairs( self.CargoTemplate.units ) do
+    self.CargoSet = SET_CARGO:New()
     
-    local GroupTemplate = UTILS.DeepCopy( self.CargoTemplate )
-    local GroupName = env.getValueDictByKey( GroupTemplate.name )
+    self:SetDeployed( false )
     
-    -- We create a new group object with one unit...
-    -- First we prepare the template...
-    GroupTemplate.name = GroupName .. "#CARGO#" .. UnitID
-    GroupTemplate.groupId = nil
-    GroupTemplate.units = {}
-    GroupTemplate.units[1] = UnitTemplate
-    local UnitName = UnitTemplate.name .. "#CARGO"
-    GroupTemplate.units[1].name = UnitTemplate.name .. "#CARGO"
-
-
-    -- Then we register the new group in the database
-    local CargoGroup = GROUP:NewTemplate( GroupTemplate, GroupTemplate.CoalitionID, GroupTemplate.CategoryID, GroupTemplate.CountryID)
+    local WeightGroup = 0
     
-    -- Now we spawn the new group based on the template created.
-    _DATABASE:Spawn( GroupTemplate )
+    self.GroupName = CargoGroup:GetName()
+    self.CargoTemplate = UTILS.DeepCopy( _DATABASE:GetGroupTemplate( self.GroupName ) )
     
-    -- And we register the spawned unit as part of the CargoSet.
-    local Unit = UNIT:FindByName( UnitName )
-    --local WeightUnit = Unit:GetDesc().massEmpty
-    --WeightGroup = WeightGroup + WeightUnit
-    local CargoUnit = CARGO_UNIT:New( Unit, Type, UnitName, 10 )
-    self.CargoSet:Add( UnitName, CargoUnit )
+    CargoGroup:Destroy()
+    
+    -- We iterate through the group template and for each unit in the template, we create a new group with one unit.
+    for UnitID, UnitTemplate in pairs( self.CargoTemplate.units ) do
+      
+      local GroupTemplate = UTILS.DeepCopy( self.CargoTemplate )
+      local GroupName = env.getValueDictByKey( GroupTemplate.name )
+      
+      -- We create a new group object with one unit...
+      -- First we prepare the template...
+      GroupTemplate.name = GroupName .. "#CARGO#" .. UnitID
+      GroupTemplate.groupId = nil
+      GroupTemplate.units = {}
+      GroupTemplate.units[1] = UnitTemplate
+      local UnitName = UnitTemplate.name .. "#CARGO"
+      GroupTemplate.units[1].name = UnitTemplate.name .. "#CARGO"
+  
+  
+      -- Then we register the new group in the database
+      local CargoGroup = GROUP:NewTemplate( GroupTemplate, GroupTemplate.CoalitionID, GroupTemplate.CategoryID, GroupTemplate.CountryID)
+      
+      -- Now we spawn the new group based on the template created.
+      _DATABASE:Spawn( GroupTemplate )
+      
+      -- And we register the spawned unit as part of the CargoSet.
+      local Unit = UNIT:FindByName( UnitName )
+      --local WeightUnit = Unit:GetDesc().massEmpty
+      --WeightGroup = WeightGroup + WeightUnit
+      local CargoUnit = CARGO_UNIT:New( Unit, Type, UnitName, 10 )
+      self.CargoSet:Add( UnitName, CargoUnit )
+    end
+  
+  
+    self:SetWeight( WeightGroup )
+    self.CargoLimit = 10
+    
+    self:T( { "Weight Cargo", WeightGroup } )
+  
+    -- Cargo objects are added to the _DATABASE and SET_CARGO objects.
+    _EVENTDISPATCHER:CreateEventNewCargo( self )
+    
+    self:HandleEvent( EVENTS.Dead, self.OnEventCargoDead )
+    self:HandleEvent( EVENTS.Crash, self.OnEventCargoDead )
+    self:HandleEvent( EVENTS.PlayerLeaveUnit, self.OnEventCargoDead )
+    
+    self:SetEventPriority( 4 )
+    
+    return self
   end
 
-
-  self:SetWeight( WeightGroup )
-  self.CargoLimit = 10
-  
-  self:T( { "Weight Cargo", WeightGroup } )
-
-  -- Cargo objects are added to the _DATABASE and SET_CARGO objects.
-  _EVENTDISPATCHER:CreateEventNewCargo( self )
-  
-  self:HandleEvent( EVENTS.Dead, self.OnEventCargoDead )
-  self:HandleEvent( EVENTS.Crash, self.OnEventCargoDead )
-  self:HandleEvent( EVENTS.PlayerLeaveUnit, self.OnEventCargoDead )
-  
-  self:SetEventPriority( 4 )
-  
-  return self
-end
-
---- @param #CARGO_GROUP self
--- @param Core.Event#EVENTDATA EventData 
-function CARGO_GROUP:OnEventCargoDead( EventData )
+  --- @param #CARGO_GROUP self
+  -- @param Core.Event#EVENTDATA EventData 
+  function CARGO_GROUP:OnEventCargoDead( EventData )
 
   local Destroyed = false
   
@@ -32224,22 +32445,6 @@ function CARGO_GROUP:OnEventCargoDead( EventData )
   end
 
 
-  --- Respawn the cargo when destroyed
-  -- @param #CARGO_GROUP self
-  -- @param #boolean RespawnDestroyed
-  function CARGO_GROUP:RespawnOnDestroyed( RespawnDestroyed )
-    self:F({"In function RespawnOnDestroyed"})
-    if RespawnDestroyed then
-      self.onenterDestroyed = function( self )
-        self:F("IN FUNCTION")
-        self:Respawn()
-      end
-    else
-      self.onenterDestroyed = nil
-    end
-      
-  end
-  
   --- Get the current Coordinate of the CargoGroup.
   -- @param #CARGO_GROUP self
   -- @return Core.Point#COORDINATE The current Coordinate of the first Cargo of the CargoGroup.
@@ -62276,9 +62481,7 @@ do -- ACT_ROUTE
   --- Set a Cancel Menu item.
   -- @param #ACT_ROUTE self
   -- @return #ACT_ROUTE
-  function ACT_ROUTE:SetMenuCancel( MenuGroup, MenuText, ParentMenu )
-    
-    local MenuTime = timer.getTime() + 1
+  function ACT_ROUTE:SetMenuCancel( MenuGroup, MenuText, ParentMenu, MenuTime, MenuTag )
     
     self.CancelMenuGroupCommand = MENU_GROUP_COMMAND:New(
       MenuGroup,
@@ -62286,10 +62489,11 @@ do -- ACT_ROUTE
       ParentMenu,
       self.MenuCancel,
       self
-    ):SetTime( MenuTime )
+    ):SetTime( MenuTime ):SetTag( MenuTag )
 
     ParentMenu:SetTime( MenuTime )
-    ParentMenu:Remove( MenuTime )
+    
+    ParentMenu:Remove( MenuTime, MenuTag )
 
     return self
   end
@@ -65316,7 +65520,9 @@ function TASK:UnAssignFromUnit( TaskUnit )
   self:F( TaskUnit:GetName() )
   
   self:RemoveStateMachine( TaskUnit )
-
+  
+  -- If a Task Control Menu had been set, then this will be removed.
+  self:RemoveTaskControlMenu( TaskUnit )
   return self
 end
 
@@ -65498,15 +65704,16 @@ function TASK:SetAssignedMenuForGroup( TaskGroup, MenuTime )
   local TaskText = string.format( "%s%s", self:GetName(), TaskPlayerString ) --, TaskThreatLevelString )
   local TaskName = string.format( "%s", self:GetName() )
 
-  local MissionMenu = Mission:GetMenu( TaskGroup )
---  local MissionMenu = MENU_GROUP:New( TaskGroup, MissionName, CommandCenterMenu ):SetTime( MenuTime )
---  local MissionMenu = Mission:GetMenu( TaskGroup )
-
-  self.MenuAssigned = self.MenuAssigned or {}
-  self.MenuAssigned[TaskGroup] = MENU_GROUP_DELAYED:New( TaskGroup, string.format( "Assigned Task %s", TaskName ), MissionMenu ):SetTime( MenuTime ):SetTag( "Tasking" )
-  local TaskMenu = MENU_GROUP_COMMAND_DELAYED:New( TaskGroup, string.format( "Abort Task" ), self.MenuAssigned[TaskGroup], self.MenuTaskAbort, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
-  local MarkMenu = MENU_GROUP_COMMAND_DELAYED:New( TaskGroup, string.format( "Mark Task Location on Map" ), self.MenuAssigned[TaskGroup], self.MenuMarkToGroup, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
-  local TaskTypeMenu = MENU_GROUP_COMMAND_DELAYED:New( TaskGroup, string.format( "Report Task Details" ), self.MenuAssigned[TaskGroup], self.MenuTaskStatus, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
+  for UnitName, TaskUnit in pairs( TaskGroup:GetUnits() ) do
+    local TaskUnit = TaskUnit -- Wrapper.Unit#UNIT
+    if TaskUnit then
+      local MenuControl = self:GetTaskControlMenu( TaskUnit )
+      local TaskControl = MENU_GROUP:New( TaskGroup, "Control Task", MenuControl ):SetTime( MenuTime ):SetTag( "Tasking" )
+      local TaskMenu = MENU_GROUP_COMMAND:New( TaskGroup, string.format( "Abort Task" ), TaskControl, self.MenuTaskAbort, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
+      local MarkMenu = MENU_GROUP_COMMAND:New( TaskGroup, string.format( "Mark Task Location on Map" ), TaskControl, self.MenuMarkToGroup, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
+      local TaskTypeMenu = MENU_GROUP_COMMAND:New( TaskGroup, string.format( "Report Task Details" ), TaskControl, self.MenuTaskStatus, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
+    end
+  end
 
   return self
 end
@@ -66313,6 +66520,65 @@ do -- Additional Task Scoring and Task Progress
     return self
   end
 
+end
+
+do -- Task Control Menu
+  
+  -- The Task Control Menu is a menu attached to the task at the main menu to quickly be able to do actions in the task.
+  -- The Task Control Menu can only be shown when the task is assigned to the player.
+  -- The Task Control Menu is linked to the process executing the task, so no task menu can be set to the main static task definition.
+  
+  --- Init Task Control Menu
+  -- @param #TASK self
+  -- @param Wrapper.Unit#UNIT TaskUnit The @{Unit} that contains a player.
+  -- @return Task Control Menu Refresh ID
+  function TASK:InitTaskControlMenu( TaskUnit )
+
+    self.TaskControlMenuTime = timer.getTime()
+    
+    return self.TaskControlMenuTime
+  end
+  
+  --- Get Task Control Menu
+  -- @param #TASK self
+  -- @param Wrapper.Unit#UNIT TaskUnit The @{Unit} that contains a player.
+  -- @return Core.Menu#MENU_GROUP TaskControlMenu The Task Control Menu
+  function TASK:GetTaskControlMenu( TaskUnit, TaskName )
+  
+    TaskName = TaskName or ""
+    
+    if not self.TaskControlMenu then
+      self.TaskControlMenu = MENU_GROUP:New( TaskUnit:GetGroup(), "Assigned Task " .. TaskUnit:GetPlayerName() .. " - " .. self:GetName() .. " " .. TaskName ):SetTime( self.TaskControlMenuTime )
+    else
+      self.TaskControlMenu:SetTime( self.TaskControlMenuTime )
+    end
+    
+    return self.TaskControlMenu
+  end
+
+  --- Remove Task Control Menu
+  -- @param #TASK self
+  -- @param Wrapper.Unit#UNIT TaskUnit The @{Unit} that contains a player.
+  function TASK:RemoveTaskControlMenu( TaskUnit )
+  
+    if self.TaskControlMenu then
+      self.TaskControlMenu:Remove()
+      self.TaskControlMenu = nil
+    end
+  end
+  
+  --- Refresh Task Control Menu
+  -- @param #TASK self
+  -- @param Wrapper.Unit#UNIT TaskUnit The @{Unit} that contains a player.
+  -- @param MenuTime The refresh time that was used to refresh the Task Control Menu items.
+  -- @param MenuTag The tag.
+  function TASK:RefreshTaskControlMenu( TaskUnit, MenuTime, MenuTag )
+  
+    if self.TaskControlMenu then
+      self.TaskControlMenu:Remove( MenuTime, MenuTag )
+    end
+  end
+  
 end
 --- **Tasking** -- Controls the information of a Task.
 -- 
@@ -70031,17 +70297,17 @@ do -- TASK_CARGO
     --- 
     -- @param #FSM_PROCESS self
     -- @param Wrapper.Unit#UNIT TaskUnit
-    -- @param Tasking.Task_CARGO#TASK_CARGO Task
+    -- @param #TASK_CARGO Task
     function Fsm:onafterSelectAction( TaskUnit, Task )
       
       local TaskUnitName = TaskUnit:GetName()
       
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
 
-      local MenuTime = timer.getTime()
+      local MenuTime = Task:InitTaskControlMenu( TaskUnit )
+      
+      local MenuControl = Task:GetTaskControlMenu( TaskUnit )
             
-      TaskUnit.Menu = MENU_GROUP:New( TaskUnit:GetGroup(), Task:GetName() .. " @ " .. TaskUnit:GetName() )
-
       local CargoItemCount = TaskUnit:CargoItemCount()
 
       --Task:GetMission():GetCommandCenter():MessageToGroup( "Cargo in carrier: " .. CargoItemCount, TaskUnit:GetGroup() )
@@ -70058,7 +70324,7 @@ do -- TASK_CARGO
 --              MENU_GROUP_COMMAND:New(
 --                TaskUnit:GetGroup(),
 --                "Cancel Route " .. Cargo.Name,
---                TaskUnit.Menu,
+--                MenuControl,
 --                self.MenuRouteToPickupCancel,
 --                self,
 --                Cargo
@@ -70068,6 +70334,8 @@ do -- TASK_CARGO
             self:F( { CargoUnloaded = Cargo:IsUnLoaded(), CargoLoaded = Cargo:IsLoaded(), CargoItemCount = CargoItemCount } )
             Task:E( { TaskDeployZones = Task.DeployZones, TaskName = Task:GetName() } )
         
+            local TaskGroup = TaskUnit:GetGroup()
+            
             if Cargo:IsUnLoaded() then
               if CargoItemCount < 1 then 
                 if Cargo:IsInReportRadius( TaskUnit:GetPointVec2() ) then
@@ -70082,7 +70350,8 @@ do -- TASK_CARGO
                       if Cargo:CanBoard() == true then
                         if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
                           Cargo:Report( "ready for boarding at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "board", TaskUnit:GetGroup() )
-                          MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Board cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuBoardCargo, self, Cargo ):SetTime(MenuTime)
+                          local BoardMenu = MENU_GROUP:New( TaskGroup, "Board cargo", MenuControl ):SetTime( MenuTime ):SetTag( "Cargo" )
+                          MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), Cargo.Name, BoardMenu, self.MenuBoardCargo, self, Cargo ):SetTime(MenuTime):SetTag("Cargo"):SetRemoveParent()
                         else
                           Cargo:Report( "Board at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
                         end
@@ -70090,7 +70359,8 @@ do -- TASK_CARGO
                         if Cargo:CanLoad() == true then
                           if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
                             Cargo:Report( "ready for loading at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "load", TaskUnit:GetGroup() )
-                            MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Load cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuLoadCargo, self, Cargo ):SetTime(MenuTime)
+                            local LoadMenu = MENU_GROUP:New( TaskGroup, "Load cargo", MenuControl ):SetTime( MenuTime ):SetTag( "Cargo" )
+                            MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), Cargo.Name, LoadMenu, self.MenuLoadCargo, self, Cargo ):SetTime(MenuTime):SetTag("Cargo"):SetRemoveParent()
                           else
                             Cargo:Report( "Load at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
                           end
@@ -70104,17 +70374,14 @@ do -- TASK_CARGO
                           end
                         end
                       end
-                      TaskUnit.Menu:SetTime( MenuTime )
                     else
                       Cargo:ReportResetAll( TaskUnit:GetGroup() )
                     end
                   end
                 else
-                  if self:Is( "RoutingToPickup" ) then
-                  else
-                    self:F("route menu set")
-                    MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Route to Pickup cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuRouteToPickup, self, Cargo ):SetTime(MenuTime)
-                    TaskUnit.Menu:SetTime( MenuTime )
+                  if not Cargo:IsDeployed() == true then
+                    local RouteToPickupMenu = MENU_GROUP:New( TaskGroup, "Route to pickup cargo", MenuControl ):SetTime( MenuTime ):SetTag( "Cargo" )
+                    MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), Cargo.Name, RouteToPickupMenu, self.MenuRouteToPickup, self, Cargo ):SetTime(MenuTime):SetTag("Cargo"):SetRemoveParent()
                     Cargo:ReportResetAll( TaskUnit:GetGroup() )
                   end
                 end
@@ -70141,20 +70408,22 @@ do -- TASK_CARGO
             if Cargo:IsLoaded() == true and Cargo:IsLoadedInCarrier( TaskUnit ) == true then
               if not TaskUnit:InAir() then
                 if Cargo:CanUnboard() == true then
-                  MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Unboard cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuUnboardCargo, self, Cargo ):SetTime(MenuTime)
+                  local UnboardMenu = MENU_GROUP:New( TaskGroup, "Unboard cargo", MenuControl ):SetTime( MenuTime ):SetTag( "Cargo" )
+                  MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), Cargo.Name, UnboardMenu, self.MenuUnboardCargo, self, Cargo ):SetTime(MenuTime):SetTag("Cargo"):SetRemoveParent()
                 else
                   if Cargo:CanUnload() == true then
-                    MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Unload cargo " .. Cargo.Name, TaskUnit.Menu, self.MenuUnloadCargo, self, Cargo ):SetTime(MenuTime)
+                    local UnloadMenu = MENU_GROUP:New( TaskGroup, "Unload cargo", MenuControl ):SetTime( MenuTime ):SetTag( "Cargo" )
+                    MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), Cargo.Name, UnloadMenu, self.MenuUnloadCargo, self, Cargo ):SetTime(MenuTime):SetTag("Cargo"):SetRemoveParent()
                   end
                 end
-                TaskUnit.Menu:SetTime( MenuTime )
               end
-              -- Deployzones are optional zones that can be selected to request routing information.
-              for DeployZoneName, DeployZone in pairs( Task.DeployZones ) do
-                if not Cargo:IsInZone( DeployZone ) then
-                  MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Route to Deploy cargo at " .. DeployZoneName, TaskUnit.Menu, self.MenuRouteToDeploy, self, DeployZone ):SetTime(MenuTime)
-                  TaskUnit.Menu:SetTime( MenuTime )
-                end
+            end
+
+            -- Deployzones are optional zones that can be selected to request routing information.
+            for DeployZoneName, DeployZone in pairs( Task.DeployZones ) do
+              if not Cargo:IsInZone( DeployZone ) then
+                local RouteToDeployMenu = MENU_GROUP:New( TaskGroup, "Route to deploy cargo", MenuControl ):SetTime( MenuTime ):SetTag( "Cargo" )
+                MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), "Zone " .. DeployZoneName, RouteToDeployMenu, self.MenuRouteToDeploy, self, DeployZone ):SetTime(MenuTime):SetTag("Cargo"):SetRemoveParent()
               end
             end
           end
@@ -70162,8 +70431,7 @@ do -- TASK_CARGO
         end
       )
 
-      TaskUnit.Menu:Remove( MenuTime )
-      
+      Task:RefreshTaskControlMenu( TaskUnit, MenuTime, "Cargo" )
       
       self:__SelectAction( -1 )
       
@@ -70173,11 +70441,13 @@ do -- TASK_CARGO
     --- 
     -- @param #FSM_PROCESS self
     -- @param Wrapper.Unit#UNIT TaskUnit
-    -- @param Tasking.Task_Cargo#TASK_CARGO Task
+    -- @param #TASK_CARGO Task
     function Fsm:OnLeaveWaitingForCommand( TaskUnit, Task )
       self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
       
-      TaskUnit.Menu:Remove()
+      --local MenuControl = Task:GetTaskControlMenu( TaskUnit )
+      
+      --MenuControl:Remove()
     end
     
     function Fsm:MenuBoardCargo( Cargo )
@@ -70594,12 +70864,15 @@ do -- TASK_CARGO
   
     self:F({Cargo, TaskUnit})
     local ProcessUnit = self:GetUnitProcess( TaskUnit )
+
+    local MenuTime = self:InitTaskControlMenu( TaskUnit )
+    local MenuControl = self:GetTaskControlMenu( TaskUnit )
   
     local ActRouteCargo = ProcessUnit:GetProcess( "RoutingToPickup", "RouteToPickupPoint" ) -- Actions.Act_Route#ACT_ROUTE_POINT
     ActRouteCargo:Reset()
     ActRouteCargo:SetCoordinate( Cargo:GetCoordinate() )
     ActRouteCargo:SetRange( Cargo:GetLoadRadius() )
-    ActRouteCargo:SetMenuCancel( TaskUnit:GetGroup(), "Cancel Routing to Cargo " .. Cargo:GetName(), TaskUnit.Menu )
+    ActRouteCargo:SetMenuCancel( TaskUnit:GetGroup(), "Cancel Routing to Cargo " .. Cargo:GetName(), MenuControl, MenuTime, "Cargo" )
     ActRouteCargo:Start()
 
     return self
@@ -70614,10 +70887,13 @@ do -- TASK_CARGO
   
     local ProcessUnit = self:GetUnitProcess( TaskUnit )
 
+    local MenuTime = self:InitTaskControlMenu( TaskUnit )
+    local MenuControl = self:GetTaskControlMenu( TaskUnit )
+  
     local ActRouteDeployZone = ProcessUnit:GetProcess( "RoutingToDeploy", "RouteToDeployZone" ) -- Actions.Act_Route#ACT_ROUTE_ZONE
     ActRouteDeployZone:Reset()
     ActRouteDeployZone:SetZone( DeployZone )
-    ActRouteDeployZone:SetMenuCancel( TaskUnit:GetGroup(), "Cancel Routing to Deploy Zone" .. DeployZone:GetName(), TaskUnit.Menu )
+    ActRouteDeployZone:SetMenuCancel( TaskUnit:GetGroup(), "Cancel Routing to Deploy Zone" .. DeployZone:GetName(), MenuControl, MenuTime, "Cargo" )
     ActRouteDeployZone:Start()
     
     return self
@@ -70743,6 +71019,8 @@ do -- TASK_CARGO
     
     return 0
   end
+  
+  
   
 end 
 
