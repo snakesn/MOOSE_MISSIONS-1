@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-11T15:02:04.0000000Z-b5f0d1787da10e407b46b2382a4edb92912ca010 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-11T15:15:16.0000000Z-a9d28d0c6c8de8ea25cd74ae1f2b0f01dd041ef5 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -18625,7 +18625,9 @@ do -- FSM_PROCESS
     if self[handler] then
       self:F3( "Calling " .. handler )
       self._EventSchedules[EventName] = nil
-      local Result, Value = xpcall( function() return self[handler]( self, self.Controllable, self.Task, unpack( params ) ) end, ErrorHandler )
+      if self.Controllable and self.Controllable:IsAlive() == true then
+        local Result, Value = xpcall( function() return self[handler]( self, self.Controllable, self.Task, unpack( params ) ) end, ErrorHandler )
+      end
       return Value
       --return self[handler]( self, self.Controllable, unpack( params ) )
     end
@@ -30723,12 +30725,12 @@ do -- CARGO
   -- @param Core.Zone#ZONE_BASE Zone
   -- @return #boolean **true** if cargo is in the Zone, **false** if cargo is not in the Zone.
   function CARGO:IsInZone( Zone )
-    self:F( { Zone } )
+    --self:F( { Zone } )
   
     if self:IsLoaded() then
       return Zone:IsPointVec2InZone( self.CargoCarrier:GetPointVec2() )
     else
-      self:F( { Size = self.CargoObject:GetSize(), Units = self.CargoObject:GetUnits() } )
+      --self:F( { Size = self.CargoObject:GetSize(), Units = self.CargoObject:GetUnits() } )
       if self.CargoObject:GetSize() ~= 0 then
         return Zone:IsPointVec2InZone( self.CargoObject:GetPointVec2() )
       else
@@ -31727,7 +31729,7 @@ do -- CARGO_SLINGLOAD
     local Distance = 0
     if self:IsUnLoaded() then
       Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
-      self:T( Distance )
+      --self:T( Distance )
       if Distance <= self.LoadRadius then
         return true
       end
@@ -32335,7 +32337,7 @@ do -- CARGO_GROUP
   -- @param #string From
   -- @param #string To
   function CARGO_GROUP:onenterBoarding( From, Event, To, CargoCarrier, NearRadius, ... )
-    self:F( { CargoCarrier.UnitName, From, Event, To } )
+    --self:F( { CargoCarrier.UnitName, From, Event, To } )
     
     local NearRadius = NearRadius or 25
     
@@ -32360,7 +32362,7 @@ do -- CARGO_GROUP
   -- @param #string From
   -- @param #string To
   function CARGO_GROUP:onenterLoaded( From, Event, To, CargoCarrier, ... )
-    self:F( { From, Event, To, CargoCarrier, ...} )
+    --self:F( { From, Event, To, CargoCarrier, ...} )
     
     if From == "UnLoaded" then
       -- For each Cargo object within the CARGO_GROUP, load each cargo to the CargoCarrier.
@@ -32381,7 +32383,7 @@ do -- CARGO_GROUP
   -- @param #string From
   -- @param #string To
   function CARGO_GROUP:onafterBoarding( From, Event, To, CargoCarrier, NearRadius, ... )
-    self:F( { CargoCarrier.UnitName, From, Event, To } )
+    --self:F( { CargoCarrier.UnitName, From, Event, To } )
   
     local NearRadius = NearRadius or 100
   
@@ -32444,7 +32446,7 @@ do -- CARGO_GROUP
   -- @param #string From
   -- @param #string To
   function CARGO_GROUP:onenterUnBoarding( From, Event, To, ToPointVec2, NearRadius, ... )
-    self:F( {From, Event, To, ToPointVec2, NearRadius } )
+    --self:F( {From, Event, To, ToPointVec2, NearRadius } )
   
     NearRadius = NearRadius or 25
   
@@ -32478,7 +32480,7 @@ do -- CARGO_GROUP
   -- @param #string From
   -- @param #string To
   function CARGO_GROUP:onleaveUnBoarding( From, Event, To, ToPointVec2, NearRadius, ... )
-    self:F( { From, Event, To, ToPointVec2, NearRadius } )
+    --self:F( { From, Event, To, ToPointVec2, NearRadius } )
   
     --local NearRadius = NearRadius or 25
   
@@ -32515,7 +32517,7 @@ do -- CARGO_GROUP
   -- @param #string From
   -- @param #string To
   function CARGO_GROUP:onafterUnBoarding( From, Event, To, ToPointVec2, NearRadius, ... )
-    self:F( { From, Event, To, ToPointVec2, NearRadius } )
+    --self:F( { From, Event, To, ToPointVec2, NearRadius } )
   
     --local NearRadius = NearRadius or 25
   
@@ -32531,7 +32533,7 @@ do -- CARGO_GROUP
   -- @param #string From
   -- @param #string To
   function CARGO_GROUP:onenterUnLoaded( From, Event, To, ToPointVec2, ... )
-    self:F( { From, Event, To, ToPointVec2 } )
+    --self:F( { From, Event, To, ToPointVec2 } )
   
     if From == "Loaded" then
       
@@ -32595,7 +32597,7 @@ do -- CARGO_GROUP
   -- @param #CARGO_GROUP self
   -- @param Core.Point#COORDINATE Coordinate
   function CARGO_GROUP:RouteTo( Coordinate )
-    self:F( {Coordinate = Coordinate } )
+    --self:F( {Coordinate = Coordinate } )
     
     -- For each Cargo within the CargoSet, route each object to the Coordinate
     self.CargoSet:ForEach(
@@ -32614,7 +32616,7 @@ do -- CARGO_GROUP
   -- @return #boolean The Cargo is near to the Carrier.
   -- @return #nil The Cargo is not near to the Carrier.
   function CARGO_GROUP:IsNear( CargoCarrier, NearRadius )
-    self:F( {NearRadius = NearRadius } )
+    --self:F( {NearRadius = NearRadius } )
     
     local Cargo = self.CargoSet:GetFirst() -- #CARGO
     
@@ -32630,7 +32632,7 @@ do -- CARGO_GROUP
   -- @param Core.Point#Coordinate Coordinate
   -- @return #boolean true if the Cargo Group is within the load radius.
   function CARGO_GROUP:IsInLoadRadius( Coordinate )
-    self:F( { Coordinate } )
+    --self:F( { Coordinate } )
   
     local Cargo = self.CargoSet:GetFirst() -- #CARGO
 
@@ -32641,7 +32643,7 @@ do -- CARGO_GROUP
       else
         Distance = Coordinate:DistanceFromPointVec2( Cargo.CargoObject:GetPointVec2() )
       end
-      self:T( Distance )
+      --self:T( Distance )
       
       if Distance <= self.LoadRadius then
         return true
@@ -32660,7 +32662,7 @@ do -- CARGO_GROUP
   -- @param Core.Point#Coordinate Coordinate
   -- @return #boolean true if the Cargo Group is within the report radius.
   function CARGO_GROUP:IsInReportRadius( Coordinate )
-    self:F( { Coordinate } )
+    --self:F( { Coordinate } )
   
     local Cargo = self.CargoSet:GetFirst() -- #CARGO
 
@@ -32668,7 +32670,7 @@ do -- CARGO_GROUP
       local Distance = 0
       if Cargo:IsUnLoaded() then
         Distance = Coordinate:DistanceFromPointVec2( Cargo.CargoObject:GetPointVec2() )
-        self:T( Distance )
+        --self:T( Distance )
         if Distance <= self.LoadRadius then
           return true
         end
@@ -32757,7 +32759,7 @@ do -- CARGO_GROUP
   -- @return #boolean **true** if the first element of the CargoGroup is in the Zone
   -- @return #boolean **false** if there is no element of the CargoGroup in the Zone.
   function CARGO_GROUP:IsInZone( Zone )
-    self:F( { Zone } )
+    --self:F( { Zone } )
   
     local Cargo = self.CargoSet:GetFirst() -- #CARGO
 
@@ -65735,7 +65737,8 @@ function TASK:SetMenu( MenuTime ) --R2.1 Mission Reports and Task Reports added.
   self:F( { self:GetName(), MenuTime } )
 
   --self.SetGroup:Flush()
-  for TaskGroupID, TaskGroupData in pairs( self.SetGroup:GetAliveSet() ) do
+  --for TaskGroupID, TaskGroupData in pairs( self.SetGroup:GetAliveSet() ) do
+  for TaskGroupID, TaskGroupData in pairs( self.SetGroup:GetSet() ) do
     local TaskGroup = TaskGroupData -- Wrapper.Group#GROUP
     if TaskGroup:IsAlive() == true and TaskGroup:GetPlayerNames() then
     
@@ -66491,11 +66494,13 @@ function TASK:GetPlayerCount() --R2.1 Get a count of the players.
   local PlayerCount = 0
 
   -- Loop each Unit active in the Task, and find Player Names.
-  for TaskGroupID, PlayerGroup in pairs( self:GetGroups():GetAliveSet() ) do
+  for TaskGroupID, PlayerGroup in pairs( self:GetGroups():GetSet() ) do
     local PlayerGroup = PlayerGroup -- Wrapper.Group#GROUP
-    if self:IsGroupAssigned( PlayerGroup ) then
-      local PlayerNames = PlayerGroup:GetPlayerNames()
-        PlayerCount = PlayerCount + #PlayerNames
+    if PlayerGroup:IsAlive() == true then
+      if self:IsGroupAssigned( PlayerGroup ) then
+        local PlayerNames = PlayerGroup:GetPlayerNames()
+          PlayerCount = PlayerCount + #PlayerNames
+      end
     end
   end
 
@@ -70449,8 +70454,7 @@ do -- TASK_CARGO
 --              ):SetTime(MenuTime)
 --            end
 
-            self:F( { CargoUnloaded = Cargo:IsUnLoaded(), CargoLoaded = Cargo:IsLoaded(), CargoItemCount = CargoItemCount } )
-            Task:E( { TaskDeployZones = Task.DeployZones, TaskName = Task:GetName() } )
+            --self:F( { CargoUnloaded = Cargo:IsUnLoaded(), CargoLoaded = Cargo:IsLoaded(), CargoItemCount = CargoItemCount } )
         
             local TaskGroup = TaskUnit:GetGroup()
             
@@ -70507,7 +70511,6 @@ do -- TASK_CARGO
               
               -- Cargo in deployzones are flagged as deployed.
               for DeployZoneName, DeployZone in pairs( Task.DeployZones ) do
-                Task:E( { DeployZone = DeployZone } )
                 if Cargo:IsInZone( DeployZone ) then
                   Task:E( { CargoIsDeployed = Task.CargoDeployed and "true" or "false" } )
                   if Cargo:IsDeployed() == false then
