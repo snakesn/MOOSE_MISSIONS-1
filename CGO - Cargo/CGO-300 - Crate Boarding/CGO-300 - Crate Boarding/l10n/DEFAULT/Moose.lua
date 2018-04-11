@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-09T11:44:21.0000000Z-2bfbd5998f32042ca1fc7051b52717d7a12736a4 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-10T18:05:35.0000000Z-beb39fd107269544a38ad4ea6d85ab3022303b22 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -5724,7 +5724,7 @@ function EVENT:onEvent( Event )
 
   local EventMeta = _EVENTMETA[Event.id]
 
-  --self:E( { EventMeta.Text, Event } )  -- Activate the see all incoming events ...
+  self:E( { EventMeta.Text, Event } )  -- Activate the see all incoming events ...
 
   if self and 
      self.Events and 
@@ -5868,7 +5868,7 @@ function EVENT:onEvent( Event )
       
         -- Okay, we got the event from DCS. Now loop the SORTED self.EventSorted[] table for the received Event.id, and for each EventData registered, check if a function needs to be called.
         for EventClass, EventData in pairs( self.Events[Event.id][EventPriority] ) do
-
+        
           --if Event.IniObjectCategory ~= Object.Category.STATIC then
           --  self:E( { "Evaluating: ", EventClass:GetClassNameAndID() } )
           --end
@@ -6016,6 +6016,16 @@ function EVENT:onEvent( Event )
           end
         end
       end
+    end
+    
+    -- When cargo was deleted, it may probably be because of an S_EVENT_DEAD.
+    -- However, in the loading logic, an S_EVENT_DEAD is also generated after a Destroy() call.
+    -- And this is a problem because it will remove all entries from the SET_CARGOs.
+    -- To prevent this from happening, the Cargo object has a flag NoDestroy.
+    -- When true, the SET_CARGO won't Remove the Cargo object from the set.
+    -- But we need to switch that flag off after the event handlers have been called.
+    if Event.id == EVENTS.DeleteCargo then
+      Event.Cargo.NoDestroy = nil
     end
   else
     self:T( { EventMeta.Text, Event } )    
@@ -10956,6 +10966,7 @@ end
 -- @param #SET_BASE self
 -- @param #string ObjectName
 function SET_BASE:Remove( ObjectName )
+  self:F( { ObjectName = ObjectName, Object = Object } )
 
   local Object = self.Set[ObjectName]
   
@@ -11119,10 +11130,6 @@ function SET_BASE:_FilterStart()
       self:Add( ObjectName, Object )
     end
   end
-  
-  self:HandleEvent( EVENTS.Birth, self._EventOnBirth )
-  self:HandleEvent( EVENTS.Dead, self._EventOnDeadOrCrash )
-  self:HandleEvent( EVENTS.Crash, self._EventOnDeadOrCrash )
   
   -- Follow alive players and clients
   --self:HandleEvent( EVENTS.PlayerEnterUnit, self._EventOnPlayerEnterUnit )
@@ -11742,6 +11749,9 @@ function SET_GROUP:FilterStart()
 
   if _DATABASE then
     self:_FilterStart()
+    self:HandleEvent( EVENTS.Birth, self._EventOnBirth )
+    self:HandleEvent( EVENTS.Dead, self._EventOnDeadOrCrash )
+    self:HandleEvent( EVENTS.Crash, self._EventOnDeadOrCrash )
   end
   
   
@@ -12450,6 +12460,9 @@ do -- SET_UNIT
   
     if _DATABASE then
       self:_FilterStart()
+      self:HandleEvent( EVENTS.Birth, self._EventOnBirth )
+      self:HandleEvent( EVENTS.Dead, self._EventOnDeadOrCrash )
+      self:HandleEvent( EVENTS.Crash, self._EventOnDeadOrCrash )
     end
     
     return self
@@ -13366,6 +13379,9 @@ do -- SET_STATIC
   
     if _DATABASE then
       self:_FilterStart()
+      self:HandleEvent( EVENTS.Birth, self._EventOnBirth )
+      self:HandleEvent( EVENTS.Dead, self._EventOnDeadOrCrash )
+      self:HandleEvent( EVENTS.Crash, self._EventOnDeadOrCrash )
     end
     
     return self
@@ -14007,6 +14023,9 @@ function SET_CLIENT:FilterStart()
 
   if _DATABASE then
     self:_FilterStart()
+    self:HandleEvent( EVENTS.Birth, self._EventOnBirth )
+    self:HandleEvent( EVENTS.Dead, self._EventOnDeadOrCrash )
+    self:HandleEvent( EVENTS.Crash, self._EventOnDeadOrCrash )
   end
   
   return self
@@ -14406,6 +14425,9 @@ function SET_PLAYER:FilterStart()
 
   if _DATABASE then
     self:_FilterStart()
+    self:HandleEvent( EVENTS.Birth, self._EventOnBirth )
+    self:HandleEvent( EVENTS.Dead, self._EventOnDeadOrCrash )
+    self:HandleEvent( EVENTS.Crash, self._EventOnDeadOrCrash )
   end
   
   return self
@@ -15077,10 +15099,9 @@ function SET_CARGO:FilterStart() --R2.1
 
   if _DATABASE then
     self:_FilterStart()
+    self:HandleEvent( EVENTS.NewCargo )
+    self:HandleEvent( EVENTS.DeleteCargo )
   end
-
-  self:HandleEvent( EVENTS.NewCargo )
-  self:HandleEvent( EVENTS.DeleteCargo )
   
   return self
 end
@@ -15212,7 +15233,18 @@ function SET_CARGO:OnEventDeleteCargo( EventData ) --R2.1
   if EventData.Cargo then
     local Cargo = _DATABASE:FindCargo( EventData.Cargo.Name )
     if Cargo and Cargo.Name then
-      self:Remove( Cargo.Name )
+
+    -- When cargo was deleted, it may probably be because of an S_EVENT_DEAD.
+    -- However, in the loading logic, an S_EVENT_DEAD is also generated after a Destroy() call.
+    -- And this is a problem because it will remove all entries from the SET_CARGOs.
+    -- To prevent this from happening, the Cargo object has a flag NoDestroy.
+    -- When true, the SET_CARGO won't Remove the Cargo object from the set.
+    -- This flag is switched off after the event handlers have been called in the EVENT class.
+      self:F( { CargoNoDestroy=Cargo.NoDestroy } )
+      if Cargo.NoDestroy then
+      else
+        self:Remove( Cargo.Name )
+      end
     end
   end
 end
@@ -22040,15 +22072,10 @@ function SPAWNSTATIC:ReSpawnAt( Coordinate, Heading )
   if StaticTemplate then
 
     local CountryID = self.CountryID
-    local CountryName = _DATABASE.COUNTRY_NAME[CountryID]
     
     StaticTemplate.x = Coordinate.x
     StaticTemplate.y = Coordinate.z
 
-    StaticTemplate.units = nil
-    StaticTemplate.route = nil
-    StaticTemplate.groupId = nil
-    
     StaticTemplate.heading = Heading and ( ( Heading / 180 ) * math.pi ) or StaticTemplate.heading
 
     StaticTemplate.CountryID = nil
@@ -22588,6 +22615,7 @@ end
 
 --- Destroys the OBJECT.
 -- @param #OBJECT self
+-- @return #boolean true if the object is destroyed.
 -- @return #nil The DCS Unit is not existing or alive.  
 function OBJECT:Destroy()
 
@@ -22595,7 +22623,8 @@ function OBJECT:Destroy()
   
   if DCSObject then
     --BASE:CreateEventCrash( timer.getTime(), DCSObject )
-    DCSObject:destroy()
+    DCSObject:destroy( false )
+    return true
   end
 
   BASE:E( { "Cannot Destroy", Name = self.ObjectName, Class = self:GetClassName() } )
@@ -29707,15 +29736,26 @@ function STATIC:SpawnAt( Coordinate, Heading )
 end
 
 
---- Respawn the @{Unit} using a (tweaked) template of the parent Group.
+--- Respawn the @{Unit} at the same location with the same properties.
+-- This is useful to respawn a cargo after it has been destroyed.
 -- @param #UNIT self
--- @param Core.Point#COORDINATE Coordinate The coordinate where to spawn the new Static.
--- @param #number Heading The heading of the unit respawn.
 function STATIC:ReSpawn()
 
   local SpawnStatic = SPAWNSTATIC:NewFromStatic( self.StaticName )
   
   SpawnStatic:ReSpawn()
+end
+
+
+--- Respawn the @{Unit} at a defined Coordinate with an optional heading.
+-- @param #UNIT self
+-- @param Core.Point#COORDINATE Coordinate The coordinate where to spawn the new Static.
+-- @param #number Heading The heading of the unit respawn.
+function STATIC:ReSpawnAt( Coordinate, Heading )
+
+  local SpawnStatic = SPAWNSTATIC:NewFromStatic( self.StaticName )
+  
+  SpawnStatic:ReSpawnAt( Coordinate, Heading )
 end
 --- **Wrapper** -- AIRBASE is a wrapper class to handle the DCS Airbase objects.
 -- 
@@ -30314,8 +30354,7 @@ do -- CARGO
     self.Slingloadable = false
     self.Moveable = false
     self.Containable = false
-    self.LoadAction = ""
-    
+
     self.CargoLimit = 0
     
     self.LoadRadius = LoadRadius or 500
@@ -30412,6 +30451,14 @@ do -- CARGO
   -- @return #string The type of the Cargo.
   function CARGO:GetType()
     return self.Type
+  end
+
+    
+  --- Get the transportation method of the Cargo.
+  -- @param #CARGO self
+  -- @return #string The transportation method of the Cargo.
+  function CARGO:GetTransportationMethod()
+    return self.TransportationMethod
   end
 
     
@@ -30848,7 +30895,7 @@ do -- CARGO_REPRESENTABLE
   
     -- Cargo objects are deleted from the _DATABASE and SET_CARGO objects.
     self:F( { CargoName = self:GetName() } )
-    _EVENTDISPATCHER:CreateEventDeleteCargo( self )
+    --_EVENTDISPATCHER:CreateEventDeleteCargo( self )
   
     return self
   end
@@ -31532,6 +31579,24 @@ do -- CARGO_UNIT
     end
   end
 
+  --- Get the transportation method of the Cargo.
+  -- @param #CARGO_UNIT self
+  -- @return #string The transportation method of the Cargo.
+  function CARGO_UNIT:GetTransportationMethod()
+    if self:IsLoaded() then
+      return "for unboarding"
+    else
+      if self:IsUnLoaded() then
+        return "for boarding"
+      else
+        if self:IsDeployed() then
+          return "delivered"
+        end
+      end
+    end
+    return ""
+  end
+
 end -- CARGO_UNIT
 --- **Cargo** -- Management of single cargo crates, which are based on a @{Static} object. The cargo can only be slingloaded.
 --
@@ -31609,7 +31674,9 @@ do -- CARGO_SLINGLOAD
   
     if self:IsDestroyed() or self:IsUnLoaded() then
       if self.CargoObject:GetName() == EventData.IniUnitName then
-        Destroyed = true
+        if not self.NoDestroy then 
+          Destroyed = true
+        end
       end
     end
     
@@ -31782,7 +31849,25 @@ do -- CARGO_SLINGLOAD
 
     
   end
-  
+
+  --- Get the transportation method of the Cargo.
+  -- @param #CARGO_SLINGLOAD self
+  -- @return #string The transportation method of the Cargo.
+  function CARGO_SLINGLOAD:GetTransportationMethod()
+    if self:IsLoaded() then
+      return "for sling loading"
+    else
+      if self:IsUnLoaded() then
+        return "for sling loading"
+      else
+        if self:IsDeployed() then
+          return "delivered"
+        end
+      end
+    end
+    return ""
+  end
+   
 end
 --- **Cargo** -- Management of single cargo crates, which are based on a @{Static} object.
 --
@@ -31835,7 +31920,7 @@ do -- CARGO_CRATE
     local self = BASE:Inherit( self, CARGO_REPRESENTABLE:New( CargoStatic, Type, Name, nil, LoadRadius, NearRadius ) ) -- #CARGO_CRATE
     self:F( { Type, Name, NearRadius } )
   
-    self.CargoObject = CargoStatic
+    self.CargoObject = CargoStatic -- Wrapper.Static#STATIC
  
     self:T( self.ClassName )
   
@@ -31859,7 +31944,9 @@ do -- CARGO_CRATE
   
     if self:IsDestroyed() or self:IsUnLoaded() or self:IsBoarding() then
       if self.CargoObject:GetName() == EventData.IniUnitName then
-        Destroyed = true
+        if not self.NoDestroy then 
+          Destroyed = true
+        end
       end
     else
       if self:IsLoaded() then
@@ -31876,7 +31963,7 @@ do -- CARGO_CRATE
       self:I( { "Cargo crate destroyed: " .. self.CargoObject:GetName() } )
       self:Destroyed()
     end
-  
+    
   end
   
   
@@ -31931,7 +32018,10 @@ do -- CARGO_CRATE
     -- Only destroy the CargoObject is if there is a CargoObject (packages don't have CargoObjects).
     if self.CargoObject then
       self:T("Destroying")
+      self.NoDestroy = true
       self.CargoObject:Destroy()
+      --local Coordinate = self.CargoObject:GetCoordinate():GetRandomCoordinateInRadius( 50, 20 )
+      --self.CargoObject:ReSpawnAt( Coordinate, 0 )
     end
   end
 
@@ -32075,6 +32165,24 @@ do -- CARGO_CRATE
     end
 
     
+  end
+
+  --- Get the transportation method of the Cargo.
+  -- @param #CARGO_CRATE self
+  -- @return #string The transportation method of the Cargo.
+  function CARGO_CRATE:GetTransportationMethod()
+    if self:IsLoaded() then
+      return "for unloading"
+    else
+      if self:IsUnLoaded() then
+        return "for loading"
+      else
+        if self:IsDeployed() then
+          return "delivered"
+        end
+      end
+    end
+    return ""
   end
   
 end
@@ -32664,6 +32772,26 @@ do -- CARGO_GROUP
     return nil
   
   end
+
+  --- Get the transportation method of the Cargo.
+  -- @param #CARGO_GROUP self
+  -- @return #string The transportation method of the Cargo.
+  function CARGO_GROUP:GetTransportationMethod()
+    if self:IsLoaded() then
+      return "for unboarding"
+    else
+      if self:IsUnLoaded() then
+        return "for boarding"
+      else
+        if self:IsDeployed() then
+          return "delivered"
+        end
+      end
+    end
+    return ""
+  end
+
+    
 
 end -- CARGO_GROUP
 --- **Functional** -- (R2.0) - Administer the scoring of player achievements, and create a CSV file logging the scoring events for use at team or squadron websites.
@@ -66425,7 +66553,7 @@ function TASK:ReportDetails( ReportGroup )
   
   local PlayerReport = REPORT:New()
   for PlayerName, PlayerGroup in pairs( PlayerNames ) do
-    PlayerReport:Add( "Group " .. PlayerGroup:GetCallsign() .. ": " .. PlayerName )
+    PlayerReport:Add( "Players group " .. PlayerGroup:GetCallsign() .. ": " .. PlayerName )
   end
   local Players = PlayerReport:Text()
   
@@ -66831,17 +66959,15 @@ end
 function TASKINFO:AddCargoSet( SetCargo, Order, Detail, Keep )
 
   local CargoReport = REPORT:New()
+  CargoReport:Add( "" )
   SetCargo:ForEachCargo(
-    --- @param Core.Cargo#CARGO Cargo
+    --- @param Cargo.Cargo#CARGO Cargo
     function( Cargo )
-      local CargoType = Cargo:GetType()
-      local CargoName = Cargo:GetName()
-      local CargoCoordinate = Cargo:GetCoordinate()
-      CargoReport:Add( string.format( '"%s" (%s) at %s', CargoName, CargoType, CargoCoordinate:ToStringMGRS() ) )
+      CargoReport:Add( string.format( ' - %s (%s) %s - status %s ', Cargo:GetName(), Cargo:GetType(), Cargo:GetTransportationMethod(), Cargo:GetCurrentState() ) )
     end
   )
 
-  self:AddInfo( "CargoSet", CargoReport:Text(), Order, Detail, Keep )
+  self:AddInfo( "Cargo", CargoReport:Text(), Order, Detail, Keep )
 
   return self
 end
@@ -66901,7 +67027,7 @@ function TASKINFO:Report( Report, Detail, ReportGroup )
         local Coordinate = Data.Data -- Core.Point#COORDINATE
         Text = Coordinate:ToStringWind( ReportGroup:GetUnit(1), nil, self )
       end
-      if Key == "CargoSet" then
+      if Key == "Cargo" then
         local DataText = Data.Data -- #string
         Text = DataText
       end
@@ -70349,27 +70475,27 @@ do -- TASK_CARGO
                     if not TaskUnit:InAir() then
                       if Cargo:CanBoard() == true then
                         if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
-                          Cargo:Report( "ready for boarding at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "board", TaskUnit:GetGroup() )
+                          Cargo:Report( "Ready for boarding.", "board", TaskUnit:GetGroup() )
                           local BoardMenu = MENU_GROUP:New( TaskGroup, "Board cargo", MenuControl ):SetTime( MenuTime ):SetTag( "Cargo" )
                           MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), Cargo.Name, BoardMenu, self.MenuBoardCargo, self, Cargo ):SetTime(MenuTime):SetTag("Cargo"):SetRemoveParent()
                         else
-                          Cargo:Report( "Board at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                          Cargo:Report( "Board at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() .. "." ), "reporting", TaskUnit:GetGroup() )
                         end
                       else
                         if Cargo:CanLoad() == true then
                           if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
-                            Cargo:Report( "ready for loading at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "load", TaskUnit:GetGroup() )
+                            Cargo:Report( "Ready for loading.", "load", TaskUnit:GetGroup() )
                             local LoadMenu = MENU_GROUP:New( TaskGroup, "Load cargo", MenuControl ):SetTime( MenuTime ):SetTag( "Cargo" )
                             MENU_GROUP_COMMAND:New( TaskUnit:GetGroup(), Cargo.Name, LoadMenu, self.MenuLoadCargo, self, Cargo ):SetTime(MenuTime):SetTag("Cargo"):SetRemoveParent()
                           else
-                            Cargo:Report( "Load at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                            Cargo:Report( "Load at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ) .. " within " .. Cargo.NearRadius .. ".", "reporting", TaskUnit:GetGroup() )
                           end
                         else
                           if Cargo:CanSlingload() == true then
                             if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
-                              Cargo:Report( "ready for slingloading at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "slingload", TaskUnit:GetGroup() )
+                              Cargo:Report( "Ready for slingloading.", "slingload", TaskUnit:GetGroup() )
                             else
-                              Cargo:Report( "Slingload at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ), "reporting", TaskUnit:GetGroup() )
+                              Cargo:Report( "Slingload at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() .. "." ), "reporting", TaskUnit:GetGroup() )
                             end
                           end
                         end
@@ -70683,7 +70809,7 @@ do -- TASK_CARGO
       local TaskUnitName = TaskUnit:GetName()
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
 
-      Cargo:MessageToGroup( "Boarded ...", TaskUnit:GetGroup() )
+      Cargo:MessageToGroup( "Boarded cargo " .. Cargo:GetName(), TaskUnit:GetGroup() )
       
       self:__Load( -0.1, Cargo )
       
@@ -70702,7 +70828,7 @@ do -- TASK_CARGO
         Cargo:Load( TaskUnit )
       end
 
-      Cargo:MessageToGroup( "Loaded ...", TaskUnit:GetGroup() )
+      Cargo:MessageToGroup( "Loaded cargo " .. Cargo:GetName(), TaskUnit:GetGroup() )
       TaskUnit:AddCargo( Cargo )
 
       Task:CargoPickedUp( TaskUnit, Cargo )
@@ -70776,7 +70902,7 @@ do -- TASK_CARGO
       local TaskUnitName = TaskUnit:GetName()
       self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
       
-      self.Cargo:MessageToGroup( "UnBoarded ...", TaskUnit:GetGroup() )
+      self.Cargo:MessageToGroup( "UnBoarded cargo " .. self.Cargo:GetName(), TaskUnit:GetGroup() )
       
       self:Unload( self.Cargo )
     end
@@ -70799,6 +70925,8 @@ do -- TASK_CARGO
       end
       TaskUnit:RemoveCargo( Cargo )
       
+      Cargo:MessageToGroup( "Unloaded cargo " .. Cargo:GetName(), TaskUnit:GetGroup() )
+
       self:Planned()
       self:__SelectAction( 1 )
     end
@@ -71010,7 +71138,6 @@ do -- TASK_CARGO
   function TASK_CARGO:UpdateTaskInfo( DetectedItem )
   
     if self:IsStatePlanned() or self:IsStateAssigned() then
-      self.TaskInfo:AddTaskName( 0, "MSOD" )
       self.TaskInfo:AddCargoSet( self.SetCargo, 10, "SOD", true )
     end
   end
