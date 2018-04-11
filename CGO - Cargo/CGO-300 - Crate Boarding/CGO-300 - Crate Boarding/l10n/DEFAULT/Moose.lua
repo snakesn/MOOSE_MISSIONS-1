@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-10T18:05:35.0000000Z-beb39fd107269544a38ad4ea6d85ab3022303b22 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-11T15:02:04.0000000Z-b5f0d1787da10e407b46b2382a4edb92912ca010 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -7136,7 +7136,7 @@ do -- MENU_BASE
   -- @param #boolean RemoveParent If true, the parent menu is automatically removed when this menu is the last child menu of that parent @{Menu}.
   -- @return #MENU_BASE
   function MENU_BASE:SetRemoveParent( RemoveParent )
-    self:F( { RemoveParent } )
+    --self:F( { RemoveParent } )
     self.MenuRemoveParent = RemoveParent
     return self
   end
@@ -23031,7 +23031,7 @@ function POSITIONABLE:GetPointVec2()
     
     local PositionablePointVec2 = POINT_VEC2:NewFromVec3( PositionableVec3 )
   
-    self:T( PositionablePointVec2 )
+    --self:F( PositionablePointVec2 )
     return PositionablePointVec2
   end
   
@@ -29293,8 +29293,8 @@ function CLIENT:ShowBriefing()
     local Briefing = ""
     if self.ClientBriefing then
       Briefing = Briefing .. self.ClientBriefing
+      self:Message( Briefing, 60, "Briefing" )
     end
-    self:Message( Briefing, 60, "Briefing" )
   end
 
   return self
@@ -30696,7 +30696,7 @@ do -- CARGO
   -- @param #number NearRadius The radius when the cargo will board the Carrier (to avoid collision).
   -- @return #boolean
   function CARGO:IsNear( PointVec2, NearRadius )
-    self:F2( { PointVec2 = PointVec2, NearRadius = NearRadius } )
+    --self:F2( { PointVec2 = PointVec2, NearRadius = NearRadius } )
   
     if self.CargoObject:IsAlive() then
       --local Distance = PointVec2:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
@@ -30707,12 +30707,12 @@ do -- CARGO
       --self:F( Distance )
       
       if Distance <= NearRadius then
-        self:F( { PointVec2 = PointVec2, NearRadius = NearRadius, IsNear = true } )
+        --self:F( { PointVec2 = PointVec2, NearRadius = NearRadius, IsNear = true } )
         return true
       end
     end
     
-    self:F( { PointVec2 = PointVec2, NearRadius = NearRadius, IsNear = false } )
+    --self:F( { PointVec2 = PointVec2, NearRadius = NearRadius, IsNear = false } )
     return false
   end
   
@@ -31494,7 +31494,7 @@ do -- CARGO_UNIT
   -- @param Wrapper.Client#CLIENT CargoCarrier
   -- @param #number NearRadius
   function CARGO_UNIT:onafterBoarding( From, Event, To, CargoCarrier, NearRadius, ... )
-    self:F( { From, Event, To, CargoCarrier.UnitName, NearRadius } )
+    --self:F( { From, Event, To, CargoCarrier.UnitName, NearRadius } )
     
     
     if CargoCarrier and CargoCarrier:IsAlive() and self.CargoObject and self.CargoObject:IsAlive() then 
@@ -31547,7 +31547,7 @@ do -- CARGO_UNIT
   -- @param #string To
   -- @param Wrapper.Unit#UNIT CargoCarrier
   function CARGO_UNIT:onenterBoarding( From, Event, To, CargoCarrier, NearRadius, ... )
-    self:F( { From, Event, To, CargoCarrier.UnitName, NearRadius } )
+    --self:F( { From, Event, To, CargoCarrier.UnitName, NearRadius } )
     
     local Speed = 90
     local Angle = 180
@@ -31651,8 +31651,6 @@ do -- CARGO_SLINGLOAD
   
     self.CargoObject = CargoStatic
   
-    self:T( self.ClassName )
-  
     -- Cargo objects are added to the _DATABASE and SET_CARGO objects.
     _EVENTDISPATCHER:CreateEventNewCargo( self )
     
@@ -31724,7 +31722,7 @@ do -- CARGO_SLINGLOAD
   -- @param Core.Point#Coordinate Coordinate
   -- @return #boolean true if the Cargo Crate is within the report radius.
   function CARGO_SLINGLOAD:IsInReportRadius( Coordinate )
-    self:F( { Coordinate, LoadRadius = self.LoadRadius } )
+    --self:F( { Coordinate, LoadRadius = self.LoadRadius } )
   
     local Distance = 0
     if self:IsUnLoaded() then
@@ -31744,7 +31742,7 @@ do -- CARGO_SLINGLOAD
   -- @param Core.Point#Coordinate Coordinate
   -- @return #boolean true if the Cargo Slingload is within the loading radius.
   function CARGO_SLINGLOAD:IsInLoadRadius( Coordinate )
-    self:F( { Coordinate } )
+    --self:F( { Coordinate } )
   
     local Distance = 0
     if self:IsUnLoaded() then
@@ -31765,7 +31763,7 @@ do -- CARGO_SLINGLOAD
   -- @return Core.Point#COORDINATE The current Coordinate of the first Cargo of the CargoGroup.
   -- @return #nil There is no valid Cargo in the CargoGroup.
   function CARGO_SLINGLOAD:GetCoordinate()
-    self:F()
+    --self:F()
     
     return self.CargoObject:GetCoordinate()
   end
@@ -31795,7 +31793,7 @@ do -- CARGO_SLINGLOAD
   -- @param #CARGO_SLINGLOAD self
   -- @param Core.Point#COORDINATE Coordinate
   function CARGO_SLINGLOAD:RouteTo( Coordinate )
-    self:F( {Coordinate = Coordinate } )
+    --self:F( {Coordinate = Coordinate } )
     
   end
 
@@ -31808,7 +31806,7 @@ do -- CARGO_SLINGLOAD
   -- @return #boolean The Cargo is near to the Carrier.
   -- @return #nil The Cargo is not near to the Carrier.
   function CARGO_SLINGLOAD:IsNear( CargoCarrier, NearRadius )
-    self:F( {NearRadius = NearRadius } )
+    --self:F( {NearRadius = NearRadius } )
     
     return self:IsNear( CargoCarrier:GetCoordinate(), NearRadius )
   end
@@ -31818,7 +31816,7 @@ do -- CARGO_SLINGLOAD
   -- @param #CARGO_SLINGLOAD self
   function CARGO_SLINGLOAD:Respawn()
 
-    self:F( { "Respawning slingload " .. self:GetName() } )
+    --self:F( { "Respawning slingload " .. self:GetName() } )
 
 
     -- Respawn the group...
@@ -31835,7 +31833,7 @@ do -- CARGO_SLINGLOAD
   -- @param #CARGO_SLINGLOAD self
   function CARGO_SLINGLOAD:onafterReset()
 
-    self:F( { "Reset slingload " .. self:GetName() } )
+    --self:F( { "Reset slingload " .. self:GetName() } )
 
 
     -- Respawn the group...
@@ -31922,8 +31920,6 @@ do -- CARGO_CRATE
   
     self.CargoObject = CargoStatic -- Wrapper.Static#STATIC
  
-    self:T( self.ClassName )
-  
     -- Cargo objects are added to the _DATABASE and SET_CARGO objects.
     _EVENTDISPATCHER:CreateEventNewCargo( self )
     
@@ -31974,7 +31970,7 @@ do -- CARGO_CRATE
   -- @param #string To
   -- @param Core.Point#POINT_VEC2
   function CARGO_CRATE:onenterUnLoaded( From, Event, To, ToPointVec2 )
-    self:F( { ToPointVec2, From, Event, To } )
+    --self:F( { ToPointVec2, From, Event, To } )
   
     local Angle = 180
     local Speed = 10
@@ -32011,7 +32007,7 @@ do -- CARGO_CRATE
   -- @param #string To
   -- @param Wrapper.Unit#UNIT CargoCarrier
   function CARGO_CRATE:onenterLoaded( From, Event, To, CargoCarrier )
-    self:F( { From, Event, To, CargoCarrier } )
+    --self:F( { From, Event, To, CargoCarrier } )
   
     self.CargoCarrier = CargoCarrier
     
@@ -32042,12 +32038,12 @@ do -- CARGO_CRATE
   -- @param Core.Point#Coordinate Coordinate
   -- @return #boolean true if the Cargo Crate is within the report radius.
   function CARGO_CRATE:IsInReportRadius( Coordinate )
-    self:F( { Coordinate, LoadRadius = self.LoadRadius } )
+    --self:F( { Coordinate, LoadRadius = self.LoadRadius } )
   
     local Distance = 0
     if self:IsUnLoaded() then
       Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
-      self:T( Distance )
+      --self:T( Distance )
       if Distance <= self.LoadRadius then
         return true
       end
@@ -32062,12 +32058,12 @@ do -- CARGO_CRATE
   -- @param Core.Point#Coordinate Coordinate
   -- @return #boolean true if the Cargo Crate is within the loading radius.
   function CARGO_CRATE:IsInLoadRadius( Coordinate )
-    self:F( { Coordinate, LoadRadius = self.NearRadius } )
+    --self:F( { Coordinate, LoadRadius = self.NearRadius } )
   
     local Distance = 0
     if self:IsUnLoaded() then
       Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
-      self:T( Distance )
+      --self:T( Distance )
       if Distance <= self.NearRadius then
         return true
       end
@@ -32083,7 +32079,7 @@ do -- CARGO_CRATE
   -- @return Core.Point#COORDINATE The current Coordinate of the first Cargo of the CargoGroup.
   -- @return #nil There is no valid Cargo in the CargoGroup.
   function CARGO_CRATE:GetCoordinate()
-    self:F()
+    --self:F()
     
     return self.CargoObject:GetCoordinate()
   end
@@ -66675,11 +66671,7 @@ do -- Task Control Menu
   
     TaskName = TaskName or ""
     
-    if not self.TaskControlMenu then
-      self.TaskControlMenu = MENU_GROUP:New( TaskUnit:GetGroup(), "Assigned Task " .. TaskUnit:GetPlayerName() .. " - " .. self:GetName() .. " " .. TaskName ):SetTime( self.TaskControlMenuTime )
-    else
-      self.TaskControlMenu:SetTime( self.TaskControlMenuTime )
-    end
+    self.TaskControlMenu = MENU_GROUP:New( TaskUnit:GetGroup(), "Assigned Task " .. TaskUnit:GetPlayerName() .. " - " .. self:GetName() .. " " .. TaskName ):SetTime( self.TaskControlMenuTime )
     
     return self.TaskControlMenu
   end
@@ -70495,7 +70487,7 @@ do -- TASK_CARGO
                             if Cargo:IsInLoadRadius( TaskUnit:GetPointVec2() ) then
                               Cargo:Report( "Ready for slingloading.", "slingload", TaskUnit:GetGroup() )
                             else
-                              Cargo:Report( "Slingload at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() .. "." ), "reporting", TaskUnit:GetGroup() )
+                              Cargo:Report( "Slingload at " .. Cargo:GetCoordinate():ToString( TaskUnit:GetGroup() ) .. ".", "reporting", TaskUnit:GetGroup() )
                             end
                           end
                         end
