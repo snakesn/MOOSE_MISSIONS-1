@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-11T15:15:16.0000000Z-a9d28d0c6c8de8ea25cd74ae1f2b0f01dd041ef5 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-11T21:25:39.0000000Z-f9e6728f55f41ec662362f397f82de6f78fcc7ca ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -5724,7 +5724,7 @@ function EVENT:onEvent( Event )
 
   local EventMeta = _EVENTMETA[Event.id]
 
-  self:E( { EventMeta.Text, Event } )  -- Activate the see all incoming events ...
+  --self:E( { EventMeta.Text, Event } )  -- Activate the see all incoming events ...
 
   if self and 
      self.Events and 
@@ -10349,7 +10349,7 @@ function DATABASE:_EventOnBirth( Event )
       Event.IniGroup = self:FindGroup( Event.IniDCSGroupName )
       local PlayerName = Event.IniUnit:GetPlayerName()
       self:E( { "PlayerName:", PlayerName } )
-      if PlayerName ~= "" then
+      if PlayerName then
         self:E( { "Player Joined:", PlayerName } )
         if not self.PLAYERS[PlayerName] then
           self:AddPlayer( Event.IniUnitName, PlayerName )
@@ -10418,7 +10418,7 @@ function DATABASE:_EventOnPlayerLeaveUnit( Event )
   if Event.IniUnit then
     if Event.IniObjectCategory == 1 then
       local PlayerName = Event.IniUnit:GetPlayerName()
-      if self.PLAYERS[PlayerName] then
+      if PlayerName and self.PLAYERS[PlayerName] then
         self:E( { "Player Left:", PlayerName } )
         local Settings = SETTINGS:Set( PlayerName )
         Settings:RemovePlayerMenu( Event.IniUnit )
@@ -10966,7 +10966,7 @@ end
 -- @param #SET_BASE self
 -- @param #string ObjectName
 function SET_BASE:Remove( ObjectName )
-  self:F( { ObjectName = ObjectName, Object = Object } )
+  self:F2( { ObjectName = ObjectName } )
 
   local Object = self.Set[ObjectName]
   
@@ -10975,7 +10975,6 @@ function SET_BASE:Remove( ObjectName )
       if Key == ObjectName then
         table.remove( self.Index, Index )
         self.Set[ObjectName] = nil
-        self:Flush(self)
         break
       end
     end
@@ -10991,7 +10990,7 @@ end
 -- @param Core.Base#BASE Object
 -- @return Core.Base#BASE The added BASE Object.
 function SET_BASE:Add( ObjectName, Object )
-  self:F( { ObjectName = ObjectName, Object = Object } )
+  self:F2( { ObjectName = ObjectName, Object = Object } )
 
   -- Ensure that the existing element is removed from the Set before a new one is inserted to the Set
   if self.Set[ObjectName] then
@@ -16540,7 +16539,7 @@ do -- COORDINATE
   -- @return #string The coordinate Text in the configured coordinate system.
   function COORDINATE:ToStringFromRP( ReferenceCoord, ReferenceName, Controllable, Settings ) -- R2.2
   
-    self:F( { ReferenceCoord = ReferenceCoord, ReferenceName = ReferenceName } )
+    self:F2( { ReferenceCoord = ReferenceCoord, ReferenceName = ReferenceName } )
 
     local Settings = Settings or ( Controllable and _DATABASE:GetPlayerSettings( Controllable:GetPlayerName() ) ) or _SETTINGS
     
@@ -16569,7 +16568,7 @@ do -- COORDINATE
   -- @return #string The coordinate Text in the configured coordinate system.
   function COORDINATE:ToStringA2G( Controllable, Settings ) -- R2.2
   
-    self:F( { Controllable = Controllable and Controllable:GetName() } )
+    self:F2( { Controllable = Controllable and Controllable:GetName() } )
 
     local Settings = Settings or ( Controllable and _DATABASE:GetPlayerSettings( Controllable:GetPlayerName() ) ) or _SETTINGS
 
@@ -16604,7 +16603,7 @@ do -- COORDINATE
   -- @return #string The coordinate Text in the configured coordinate system.
   function COORDINATE:ToStringA2A( Controllable, Settings ) -- R2.2
   
-    self:F( { Controllable = Controllable and Controllable:GetName() } )
+    self:F2( { Controllable = Controllable and Controllable:GetName() } )
 
     local Settings = Settings or ( Controllable and _DATABASE:GetPlayerSettings( Controllable:GetPlayerName() ) ) or _SETTINGS
 
@@ -16644,7 +16643,7 @@ do -- COORDINATE
   -- @return #string The coordinate Text in the configured coordinate system.
   function COORDINATE:ToString( Controllable, Settings, Task ) -- R2.2
   
-    self:F( { Controllable = Controllable and Controllable:GetName() } )
+    self:F2( { Controllable = Controllable and Controllable:GetName() } )
 
     local Settings = Settings or ( Controllable and _DATABASE:GetPlayerSettings( Controllable:GetPlayerName() ) ) or _SETTINGS
 
@@ -16693,7 +16692,7 @@ do -- COORDINATE
   -- @return #string The pressure text in the configured measurement system.
   function COORDINATE:ToStringPressure( Controllable, Settings ) -- R2.3
   
-    self:F( { Controllable = Controllable and Controllable:GetName() } )
+    self:F2( { Controllable = Controllable and Controllable:GetName() } )
 
     local Settings = Settings or ( Controllable and _DATABASE:GetPlayerSettings( Controllable:GetPlayerName() ) ) or _SETTINGS
 
@@ -16709,7 +16708,7 @@ do -- COORDINATE
   -- @return #string The wind text in the configured measurement system.
   function COORDINATE:ToStringWind( Controllable, Settings ) -- R2.3
   
-    self:F( { Controllable = Controllable and Controllable:GetName() } )
+    self:F2( { Controllable = Controllable and Controllable:GetName() } )
 
     local Settings = Settings or ( Controllable and _DATABASE:GetPlayerSettings( Controllable:GetPlayerName() ) ) or _SETTINGS
 
@@ -16725,7 +16724,7 @@ do -- COORDINATE
   -- @return #string The temperature text in the configured measurement system.
   function COORDINATE:ToStringTemperature( Controllable, Settings ) -- R2.3
   
-    self:F( { Controllable = Controllable and Controllable:GetName() } )
+    self:F2( { Controllable = Controllable and Controllable:GetName() } )
 
     local Settings = Settings or ( Controllable and _DATABASE:GetPlayerSettings( Controllable:GetPlayerName() ) ) or _SETTINGS
 
@@ -18028,7 +18027,7 @@ do -- FSM
   --- Creates a new FSM object.
   -- @param #FSM self
   -- @return #FSM
-  function FSM:New( FsmT )
+  function FSM:New()
   
     -- Inherits from BASE
     self = BASE:Inherit( self, BASE:New() )
@@ -18248,8 +18247,9 @@ do -- FSM
   end
   
   
-  function FSM:_call_handler( handler, params, EventName )
+  function FSM:_call_handler( step, trigger, params, EventName )
 
+    local handler = step .. trigger
     local ErrorHandler = function( errmsg )
   
       env.info( "Error in SCHEDULER function:" .. errmsg )
@@ -18260,64 +18260,99 @@ do -- FSM
       return errmsg
     end
     if self[handler] then
-      self:T2( "Calling " .. handler )
+      self:T( "*** FSM ***    " .. step .. " *** " .. params[1] .. " --> " .. params[2] .. " --> " .. params[3] )
       self._EventSchedules[EventName] = nil
       local Result, Value = xpcall( function() return self[handler]( self, unpack( params ) ) end, ErrorHandler )
       return Value
     end
   end
   
+  --- @param #FSM self
   function FSM._handler( self, EventName, ... )
   
-    local Can, to = self:can( EventName )
+    local Can, To = self:can( EventName )
   
-    if to == "*" then
-      to = self.current
+    if To == "*" then
+      To = self.current
     end
   
     if Can then
-      local from = self.current
-      local params = { from, EventName, to, ...  }
+      local From = self.current
+      local Params = { From, EventName, To, ...  }
 
-      if self.Controllable then
-        self:T( "FSM Transition for " .. self.Controllable.ControllableName .. " :" .. self.current .. " --> " .. EventName .. " --> " .. to )
+
+      if self["onleave".. From] or
+         self["OnLeave".. From] or
+         self["onbefore".. EventName] or
+         self["OnBefore".. EventName] or
+         self["onafter".. EventName] or
+         self["OnAfter".. EventName] or
+         self["onenter".. To] or
+         self["OnEnter".. To] 
+      then
+        if self:_call_handler( "onbefore", EventName, Params, EventName ) == false then
+          self:T( "*** FSM ***    Cancel" .. " *** " .. self.current .. " --> " .. EventName .. " --> " .. To .. " *** onbefore" .. EventName )
+          return false
+        else
+          if self:_call_handler( "OnBefore", EventName, Params, EventName ) == false then
+            self:T( "*** FSM ***    Cancel" .. " *** " .. self.current .. " --> " .. EventName .. " --> " .. To .. " *** OnBefore" .. EventName )
+            return false
+          else
+            if self:_call_handler( "onleave", From, Params, EventName ) == false then  
+              self:T( "*** FSM ***    Cancel" .. " *** " .. self.current .. " --> " .. EventName .. " --> " .. To .. " *** onleave" .. From )
+              return false
+            else
+              if self:_call_handler( "OnLeave", From, Params, EventName ) == false then
+                self:T( "*** FSM ***    Cancel" .. " *** " .. self.current .. " --> " .. EventName .. " --> " .. To .. " *** OnLeave" .. From )
+                return false
+              end
+            end  
+          end
+        end
       else
-        self:T( "FSM Transition:" .. self.current .. " --> " .. EventName .. " --> " .. to )
-      end        
+        local ClassName = self:GetClassName()
+        if ClassName == "FSM" then
+          self:T( "*** FSM ***    Transit *** " .. self.current .. " --> " .. EventName .. " --> " .. To )
+        end
   
-      if ( self:_call_handler("onbefore" .. EventName, params, EventName ) == false )
-      or ( self:_call_handler("OnBefore" .. EventName, params, EventName ) == false )
-      or ( self:_call_handler("onleave" .. from, params, EventName ) == false )
-      or ( self:_call_handler("OnLeave" .. from, params, EventName ) == false ) then
-        self:T( "Cancel Transition" )
-        return false
+        if ClassName == "FSM_TASK" then
+          self:T( "*** FSM ***    Transit *** " .. self.current .. " --> " .. EventName .. " --> " .. To .. " *** Task: " .. self.TaskName )
+        end
+  
+        if ClassName == "FSM_CONTROLLABLE" then
+          self:T( "*** FSM ***    Transit *** " .. self.current .. " --> " .. EventName .. " --> " .. To .. " *** TaskUnit: " .. self.Controllable.ControllableName .. " *** "  )
+        end        
+    
+        if ClassName == "FSM_PROCESS" then
+          self:T( "*** FSM ***    Transit *** " .. self.current .. " --> " .. EventName .. " --> " .. To .. " *** Task: " .. self.Task:GetName() .. ", TaskUnit: " .. self.Controllable.ControllableName .. " *** "  )
+        end        
       end
   
-      self.current = to
+      self.current = To
   
       local execute = true
   
-      local subtable = self:_gosub( from, EventName )
+      local subtable = self:_gosub( From, EventName )
       for _, sub in pairs( subtable ) do
         --if sub.nextevent then
         --  self:F2( "nextevent = " .. sub.nextevent )
         --  self[sub.nextevent]( self )
         --end
-        self:T( "calling sub start event: " .. sub.StartEvent )
+        self:T( "*** FSM ***    Sub *** " .. sub.StartEvent )
         sub.fsm.fsmparent = self
         sub.fsm.ReturnEvents = sub.ReturnEvents
         sub.fsm[sub.StartEvent]( sub.fsm )
         execute = false
       end
   
-      local fsmparent, Event = self:_isendstate( to )
+      local fsmparent, Event = self:_isendstate( To )
       if fsmparent and Event then
-        self:F2( { "end state: ", fsmparent, Event } )
-        self:_call_handler("onenter" .. to, params, EventName )
-        self:_call_handler("OnEnter" .. to, params, EventName )
-        self:_call_handler("onafter" .. EventName, params, EventName )
-        self:_call_handler("OnAfter" .. EventName, params, EventName )
-        self:_call_handler("onstatechange", params, EventName )
+        self:T( "*** FSM ***    End *** " .. Event )
+        self:_call_handler("onenter", To, Params, EventName )
+        self:_call_handler("OnEnter", To, Params, EventName )
+        self:_call_handler("onafter", EventName, Params, EventName )
+        self:_call_handler("OnAfter", EventName, Params, EventName )
+        self:_call_handler("onstate", "change", Params, EventName )
         fsmparent[Event]( fsmparent )
         execute = false
       end
@@ -18325,18 +18360,17 @@ do -- FSM
       if execute then
         -- only execute the call if the From state is not equal to the To state! Otherwise this function should never execute!
         --if from ~= to then
-          self:_call_handler("onenter" .. to, params, EventName )
-          self:_call_handler("OnEnter" .. to, params, EventName )
+          self:_call_handler("onenter", To, Params, EventName )
+          self:_call_handler("OnEnter", To, Params, EventName )
         --end
   
-        self:_call_handler("onafter" .. EventName, params, EventName )
-        self:_call_handler("OnAfter" .. EventName, params, EventName )
+        self:_call_handler("onafter", EventName, Params, EventName )
+        self:_call_handler("OnAfter", EventName, Params, EventName )
   
-        self:_call_handler("onstatechange", params, EventName )
+        self:_call_handler("onstate", "change", Params, EventName )
       end
     else
-      self:T( "Cannot execute transition." )
-      self:T( { From = self.current, Event = EventName, To = to, Can = Can } )
+      self:T( "*** FSM *** NO Transition *** " .. self.current .. " --> " .. EventName .. " -->  ? " )
     end
   
     return nil
@@ -18382,17 +18416,16 @@ do -- FSM
   function FSM:_isendstate( Current )
     local FSMParent = self.fsmparent
     if FSMParent and self.endstates[Current] then
-      self:T( { state = Current, endstates = self.endstates, endstate = self.endstates[Current] } )
+      --self:T( { state = Current, endstates = self.endstates, endstate = self.endstates[Current] } )
       FSMParent.current = Current
       local ParentFrom = FSMParent.current
-      self:T( ParentFrom )
-      self:T( self.ReturnEvents )
+      --self:T( { ParentFrom, self.ReturnEvents } )
       local Event = self.ReturnEvents[Current]
-      self:T( { ParentFrom, Event, self.ReturnEvents } )
+      --self:T( { Event } )
       if Event then
         return FSMParent, Event
       else
-        self:T( { "Could not find parent event name for state ", ParentFrom } )
+        --self:T( { "Could not find parent event name for state ", ParentFrom } )
       end
     end
   
@@ -18464,10 +18497,10 @@ do -- FSM_CONTROLLABLE
   -- @param #table FSMT Finite State Machine Table
   -- @param Wrapper.Controllable#CONTROLLABLE Controllable (optional) The CONTROLLABLE object that the FSM_CONTROLLABLE governs.
   -- @return #FSM_CONTROLLABLE
-  function FSM_CONTROLLABLE:New( FSMT, Controllable )
+  function FSM_CONTROLLABLE:New( Controllable )
   
     -- Inherits from BASE
-    local self = BASE:Inherit( self, FSM:New( FSMT ) ) -- Core.Fsm#FSM_CONTROLLABLE
+    local self = BASE:Inherit( self, FSM:New() ) -- Core.Fsm#FSM_CONTROLLABLE
   
     if Controllable then
       self:SetControllable( Controllable )
@@ -18550,7 +18583,9 @@ do -- FSM_CONTROLLABLE
     return self.Controllable
   end
   
-  function FSM_CONTROLLABLE:_call_handler( handler, params, EventName )
+  function FSM_CONTROLLABLE:_call_handler( step, trigger, params, EventName )
+  
+    local handler = step .. trigger
   
     local ErrorHandler = function( errmsg )
   
@@ -18563,7 +18598,7 @@ do -- FSM_CONTROLLABLE
     end
   
     if self[handler] then
-      self:F3( "Calling " .. handler )
+      self:T( "*** FSM ***    " .. step .. " *** " .. params[1] .. " --> " .. params[2] .. " --> " .. params[3] .. " *** TaskUnit: " .. self.Controllable:GetName() )
       self._EventSchedules[EventName] = nil
       local Result, Value = xpcall( function() return self[handler]( self, self.Controllable, unpack( params ) ) end, ErrorHandler )
       return Value
@@ -18600,9 +18635,9 @@ do -- FSM_PROCESS
     local self = BASE:Inherit( self, FSM_CONTROLLABLE:New() ) -- Core.Fsm#FSM_PROCESS
 
     --self:F( Controllable )
-  
+    
     self:Assign( Controllable, Task )
-  
+    
     return self
   end
   
@@ -18610,7 +18645,9 @@ do -- FSM_PROCESS
     self:T( "No Initialisation" )
   end  
 
-  function FSM_PROCESS:_call_handler( handler, params, EventName )
+  function FSM_PROCESS:_call_handler( step, trigger, params, EventName )
+  
+    local handler = step .. trigger
   
     local ErrorHandler = function( errmsg )
   
@@ -18623,7 +18660,9 @@ do -- FSM_PROCESS
     end
   
     if self[handler] then
-      self:F3( "Calling " .. handler )
+      if handler ~= "onstatechange" then
+        self:T( "*** FSM ***    " .. step .. " *** " .. params[1] .. " --> " .. params[2] .. " --> " .. params[3] .. " *** Task: " .. self.Task:GetName() .. ", TaskUnit: " .. self.Controllable:GetName() )
+      end
       self._EventSchedules[EventName] = nil
       if self.Controllable and self.Controllable:IsAlive() == true then
         local Result, Value = xpcall( function() return self[handler]( self, self.Controllable, self.Task, unpack( params ) ) end, ErrorHandler )
@@ -18643,7 +18682,7 @@ do -- FSM_PROCESS
     local NewFsm = self:New( Controllable, Task ) -- Core.Fsm#FSM_PROCESS
   
     NewFsm:Assign( Controllable, Task )
-  
+
     -- Polymorphic call to initialize the new FSM_PROCESS based on self FSM_PROCESS
     NewFsm:Init( self )
     
@@ -18734,21 +18773,21 @@ do -- FSM_PROCESS
 -- TODO: Need to check and fix that an FSM_PROCESS is only for a UNIT. Not for a GROUP.  
   
   --- Send a message of the @{Task} to the Group of the Unit.
--- @param #FSM_PROCESS self
-function FSM_PROCESS:Message( Message )
-  self:F( { Message = Message } )
-
-  local CC = self:GetCommandCenter()
-  local TaskGroup = self.Controllable:GetGroup()
+  -- @param #FSM_PROCESS self
+  function FSM_PROCESS:Message( Message )
+    self:F( { Message = Message } )
   
-  local PlayerName = self.Controllable:GetPlayerName() -- Only for a unit
-  PlayerName = PlayerName and " (" .. PlayerName .. ")" or "" -- If PlayerName is nil, then keep it nil, otherwise add brackets.
-  local Callsign = self.Controllable:GetCallsign()
-  local Prefix = Callsign and " @ " .. Callsign .. PlayerName or ""
-  
-  Message = Prefix .. ": " .. Message
-  CC:MessageToGroup( Message, TaskGroup )
-end
+    local CC = self:GetCommandCenter()
+    local TaskGroup = self.Controllable:GetGroup()
+    
+    local PlayerName = self.Controllable:GetPlayerName() -- Only for a unit
+    PlayerName = PlayerName and " (" .. PlayerName .. ")" or "" -- If PlayerName is nil, then keep it nil, otherwise add brackets.
+    local Callsign = self.Controllable:GetCallsign()
+    local Prefix = Callsign and " @ " .. Callsign .. PlayerName or ""
+    
+    Message = Prefix .. ": " .. Message
+    CC:MessageToGroup( Message, TaskGroup )
+  end
 
   
   
@@ -18769,14 +18808,16 @@ end
     return self
   end
     
-  function FSM_PROCESS:onenterAssigned( ProcessUnit )
-    self:T( "Assign" )
+--  function FSM_PROCESS:onenterAssigned( ProcessUnit, Task, From, Event, To )
+--  
+--    if From( "Planned" ) then
+--      self:T( "*** FSM ***    Assign *** " .. Task:GetName() .. "/" .. ProcessUnit:GetName() .. " *** " .. From .. " --> " .. Event .. " --> " .. To )
+--      self.Task:Assign()
+--    end
+--  end
   
-    self.Task:Assign()
-  end
-  
-  function FSM_PROCESS:onenterFailed( ProcessUnit )
-    self:T( "Failed" )
+  function FSM_PROCESS:onenterFailed( ProcessUnit, Task, From, Event, To )
+    self:T( "*** FSM ***    Failed *** " .. Task:GetName() .. "/" .. ProcessUnit:GetName() .. " *** " .. From .. " --> " .. Event .. " --> " .. To )
   
     self.Task:Fail()
   end
@@ -18788,14 +18829,17 @@ end
   -- @param #string Event
   -- @param #string From
   -- @param #string To
-  function FSM_PROCESS:onstatechange( ProcessUnit, Task, From, Event, To, Dummy )
-    self:T( { ProcessUnit:GetName(), From, Event, To, Dummy, self:IsTrace() } )
+  function FSM_PROCESS:onstatechange( ProcessUnit, Task, From, Event, To )
   
-    if self:IsTrace() then
-      --MESSAGE:New( "@ Process " .. self:GetClassNameAndID() .. " : " .. Event .. " changed to state " .. To, 2 ):ToAll()
+    if From ~= To then
+      self:T( "*** FSM ***    Change *** " .. Task:GetName() .. "/" .. ProcessUnit:GetName() .. " *** " .. From .. " --> " .. Event .. " --> " .. To )
     end
   
-    self:T( { Scores = self._Scores, To = To } )
+--    if self:IsTrace() then
+--      MESSAGE:New( "@ Process " .. self:GetClassNameAndID() .. " : " .. Event .. " changed to state " .. To, 2 ):ToAll()
+--      self:F2( { Scores = self._Scores, To = To } )
+--    end
+  
     -- TODO: This needs to be reworked with a callback functions allocated within Task, and set within the mission script from the Task Objects...
     if self._Scores[To] then
     
@@ -18830,22 +18874,23 @@ do -- FSM_TASK
   
   --- Creates a new FSM_TASK object.
   -- @param #FSM_TASK self
-  -- @param #table FSMT
-  -- @param Tasking.Task#TASK Task
-  -- @param Wrapper.Unit#UNIT TaskUnit
+  -- @param #string TaskName The name of the task.
   -- @return #FSM_TASK
-  function FSM_TASK:New( FSMT )
+  function FSM_TASK:New( TaskName )
   
-    local self = BASE:Inherit( self, FSM_CONTROLLABLE:New( FSMT ) ) -- Core.Fsm#FSM_TASK
+    local self = BASE:Inherit( self, FSM_CONTROLLABLE:New() ) -- Core.Fsm#FSM_TASK
   
     self["onstatechange"] = self.OnStateChange
+    self.TaskName = TaskName
   
     return self
   end
   
-  function FSM_TASK:_call_handler( handler, params, EventName )
+  function FSM_TASK:_call_handler( step, trigger, params, EventName )
+    local handler = step .. trigger
+    
     if self[handler] then
-      self:T( "Calling " .. handler )
+      self:T( "*** FSM ***    " .. step .. " *** " .. params[1] .. " --> " .. params[2] .. " --> " .. params[3] .. " *** Task: " .. self.TaskName )
       self._EventSchedules[EventName] = nil
       return self[handler]( self, unpack( params ) )
     end
@@ -18907,9 +18952,10 @@ do -- FSM_SET
     return self.Controllable
   end
   
-  function FSM_SET:_call_handler( handler, params, EventName  )
+  function FSM_SET:_call_handler( step, trigger, params, EventName  )
+  local handler = step .. trigger
     if self[handler] then
-      self:T( "Calling " .. handler )
+      self:T( "*** FSM ***    " .. step .. " *** " .. params[1] .. " --> " .. params[2] .. " --> " .. params[3] )
       self._EventSchedules[EventName] = nil
       return self[handler]( self, self.Set, unpack( params ) )
     end
@@ -26062,7 +26108,7 @@ function CONTROLLABLE:GetDetectedTargets( DetectVisual, DetectOptical, DetectRad
     local DetectionRWR = ( DetectRWR and DetectRWR == true ) and Controller.Detection.RWR or nil
     local DetectionDLINK = ( DetectDLINK and DetectDLINK == true ) and Controller.Detection.DLINK or nil
     
-    self:T( { DetectionVisual, DetectionOptical, DetectionRadar, DetectionIRST, DetectionRWR, DetectionDLINK } )
+    self:T2( { DetectionVisual, DetectionOptical, DetectionRadar, DetectionIRST, DetectionRWR, DetectionDLINK } )
     
     return self:_GetController():getDetectedTargets( DetectionVisual, DetectionOptical, DetectionRadar, DetectionIRST, DetectionRWR, DetectionDLINK )
   end
@@ -26978,13 +27024,39 @@ function GROUP:GetUnits()
 
   return nil
 end
+
+
+--- Returns a list of @{Unit} objects of the @{Group} that are occupied by a player.
+-- @param #GROUP self
+-- @return #list<Wrapper.Unit#UNIT> The list of player occupied @{Unit} objects of the @{Group}.
+function GROUP:GetPlayerUnits()
+  self:F2( { self.GroupName } )
+  local DCSGroup = self:GetDCSObject()
+
+  if DCSGroup then
+    local DCSUnits = DCSGroup:getUnits()
+    local Units = {}
+    for Index, UnitData in pairs( DCSUnits ) do
+      local PlayerUnit = UNIT:Find( UnitData )
+      if PlayerUnit:GetPlayerName() then
+        Units[#Units+1] = PlayerUnit
+      end
+    end
+    self:T3( Units )
+    return Units
+  end
+
+  return nil
+end
+
+
 --- Returns the UNIT wrapper class with number UnitNumber.
 -- If the underlying DCS Unit does not exist, the method will return nil. .
 -- @param #GROUP self
 -- @param #number UnitNumber The number of the UNIT wrapper class to be returned.
 -- @return Wrapper.Unit#UNIT The UNIT wrapper class.
 function GROUP:GetUnit( UnitNumber )
-  self:E( { self.GroupName, UnitNumber } )
+  self:F3( { self.GroupName, UnitNumber } )
 
   local DCSGroup = self:GetDCSObject()
 
@@ -27004,7 +27076,7 @@ end
 -- @param #number UnitNumber The number of the DCS Unit to be returned.
 -- @return Dcs.DCSWrapper.Unit#Unit The DCS Unit.
 function GROUP:GetDCSUnit( UnitNumber )
-  self:F2( { self.GroupName, UnitNumber } )
+  self:F3( { self.GroupName, UnitNumber } )
 
   local DCSGroup = self:GetDCSObject()
 
@@ -27022,7 +27094,7 @@ end
 -- @param #GROUP self
 -- @return #number The DCS Group size.
 function GROUP:GetSize()
-  self:F2( { self.GroupName } )
+  self:F3( { self.GroupName } )
   local DCSGroup = self:GetDCSObject()
 
   if DCSGroup then
@@ -27045,7 +27117,7 @@ end
 -- @param #GROUP self
 -- @return #number The DCS Group initial size.
 function GROUP:GetInitialSize()
-  self:F2( { self.GroupName } )
+  self:F3( { self.GroupName } )
   local DCSGroup = self:GetDCSObject()
 
   if DCSGroup then
@@ -28008,6 +28080,8 @@ do -- Players
   -- @return #nil The group has no players
   function GROUP:GetPlayerNames()
   
+    local HasPlayers = false
+  
     local PlayerNames = {}
     
     local Units = self:GetUnits()
@@ -28017,11 +28091,16 @@ do -- Players
       if PlayerName and PlayerName ~= "" then
         PlayerNames = PlayerNames or {}
         table.insert( PlayerNames, PlayerName )
+        HasPlayers = true
       end   
     end
+
+    if HasPlayers == true then    
+      self:F2( PlayerNames )
+      return PlayerNames
+    end
     
-    self:F2( PlayerNames )
-    return PlayerNames
+    return nil
   end
   
 end
@@ -28467,9 +28546,21 @@ function UNIT:GetPlayerName()
   if DCSUnit then
   
     local PlayerName = DCSUnit:getPlayerName()
+    -- TODO - Workaround for DCS-BUG-3
     if PlayerName == nil or PlayerName == "" then
-      PlayerName = "Player" .. DCSUnit:getID()
+      local PlayerCategory = DCSUnit:getDesc().category
+      if PlayerCategory == Unit.Category.GROUND_UNIT or PlayerCategory == Unit.Category.SHIP then
+        PlayerName = "Player" .. DCSUnit:getID()
+      end
     end
+--    -- Good code
+--    if PlayerName == nil then 
+--      PlayerName = nil
+--    else
+--      if PlayerName == "" then
+--        PlayerName = "Player" .. DCSUnit:getID()
+--      end
+--    end
     return PlayerName
   end
 
@@ -28756,11 +28847,8 @@ function UNIT:GetThreatLevel()
   if Descriptor then 
   
     local Attributes = Descriptor.attributes
-    self:T( Attributes )
   
     if self:IsGround() then
-    
-      self:T( "Ground" )
     
       local ThreatLevels = {
         "Unarmed", 
@@ -28798,8 +28886,6 @@ function UNIT:GetThreatLevel()
     
     if self:IsAir() then
     
-      self:T( "Air" )
-  
       local ThreatLevels = {
         "Unarmed", 
         "Tanker", 
@@ -28831,8 +28917,6 @@ function UNIT:GetThreatLevel()
     end
     
     if self:IsShip() then
-  
-      self:T( "Ship" )
   
   --["Aircraft Carriers"] = {"Heavy armed ships",},
   --["Cruisers"] = {"Heavy armed ships",},
@@ -28871,7 +28955,6 @@ function UNIT:GetThreatLevel()
     end
   end
 
-  self:T2( ThreatLevel )
   return ThreatLevel, ThreatText
 
 end
@@ -29293,7 +29376,7 @@ function CLIENT:ShowBriefing()
   if not self.ClientBriefingShown then
     self.ClientBriefingShown = true
     local Briefing = ""
-    if self.ClientBriefing then
+    if self.ClientBriefing and self.ClientBriefing ~= "" then
       Briefing = Briefing .. self.ClientBriefing
       self:Message( Briefing, 60, "Briefing" )
     end
@@ -31729,7 +31812,6 @@ do -- CARGO_SLINGLOAD
     local Distance = 0
     if self:IsUnLoaded() then
       Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
-      --self:T( Distance )
       if Distance <= self.LoadRadius then
         return true
       end
@@ -31749,7 +31831,6 @@ do -- CARGO_SLINGLOAD
     local Distance = 0
     if self:IsUnLoaded() then
       Distance = Coordinate:DistanceFromPointVec2( self.CargoObject:GetPointVec2() )
-      self:T( Distance )
       if Distance <= self.NearRadius then
         return true
       end
@@ -40273,7 +40354,6 @@ do -- DETECTION_BASE
     -- @param #string Event The Event string.
     -- @param #string To The To State string.
     function DETECTION_BASE:onafterDetect(From,Event,To)
-      self:F( { From, Event, To } )
 
       local DetectDelay = 0.1
       self.DetectionCount = 0
@@ -40296,7 +40376,6 @@ do -- DETECTION_BASE
     -- @param #string To The To State string.
     -- @param Wrapper.Group#GROUP DetectionGroup The Group detecting.
     function DETECTION_BASE:onafterDetectionGroup( From, Event, To, DetectionGroup, DetectionTimeStamp  )
-      self:F( { From, Event, To } )
       
       self.DetectionRun = self.DetectionRun + 1
       
@@ -40304,7 +40383,7 @@ do -- DETECTION_BASE
       
       if DetectionGroup:IsAlive() then
     
-        self:T( { "DetectionGroup is Alive", DetectionGroup:GetName() } )
+        --self:T( { "DetectionGroup is Alive", DetectionGroup:GetName() } )
         
         local DetectionGroupName = DetectionGroup:GetName()
         local DetectionUnit = DetectionGroup:GetUnit(1)
@@ -40320,7 +40399,7 @@ do -- DETECTION_BASE
           self.DetectDLINK
         )
         
-        self:F( DetectedTargets )
+        --self:F( DetectedTargets )
         
         for DetectionObjectID, Detection in pairs( DetectedTargets ) do
           local DetectedObject = Detection.object -- Dcs.DCSWrapper.Object#Object
@@ -40337,7 +40416,7 @@ do -- DETECTION_BASE
               self.DetectDLINK
             )
             
-            self:T2( { TargetIsDetected = TargetIsDetected, TargetIsVisible = TargetIsVisible, TargetLastTime = TargetLastTime, TargetKnowType = TargetKnowType, TargetKnowDistance = TargetKnowDistance, TargetLastPos = TargetLastPos, TargetLastVelocity = TargetLastVelocity } )
+            --self:T2( { TargetIsDetected = TargetIsDetected, TargetIsVisible = TargetIsVisible, TargetLastTime = TargetLastTime, TargetKnowType = TargetKnowType, TargetKnowDistance = TargetKnowDistance, TargetLastPos = TargetLastPos, TargetLastVelocity = TargetLastVelocity } )
 
             -- Only process if the target is visible. Detection also returns invisible units.
             --if Detection.visible == true then
@@ -40359,7 +40438,7 @@ do -- DETECTION_BASE
   
               local DetectedUnitCategory = DetectedObject:getDesc().category
       
-              self:F( { "Detected Target:", DetectionGroupName, DetectedObjectName, DetectedObjectType, Distance, DetectedUnitCategory } )
+              --self:F( { "Detected Target:", DetectionGroupName, DetectedObjectName, DetectedObjectType, Distance, DetectedUnitCategory } )
   
               -- Calculate Acceptance
               
@@ -40407,7 +40486,7 @@ do -- DETECTION_BASE
                 local DistanceProbability = 1 - DistanceProbabilityReversed
                 DistanceProbability = DistanceProbability * 30 / 300
                 local Probability = math.random() -- Selects a number between 0 and 1
-                self:T( { Probability, DistanceProbability } )
+                --self:T( { Probability, DistanceProbability } )
                 if Probability > DistanceProbability then
                   DetectionAccepted = false
                 end
@@ -40423,7 +40502,7 @@ do -- DETECTION_BASE
                 AlphaAngleProbability = AlphaAngleProbability * 30 / 300
                 
                 local Probability =  math.random() -- Selects a number between 0 and 1
-                self:T( { Probability, AlphaAngleProbability } )
+                --self:T( { Probability, AlphaAngleProbability } )
                 if Probability > AlphaAngleProbability then
                   DetectionAccepted = false
                 end
@@ -40440,7 +40519,7 @@ do -- DETECTION_BASE
                   
                   if ZoneObject:IsPointVec2InZone( DetectedObjectVec2 ) == true then
                     local Probability =  math.random() -- Selects a number between 0 and 1
-                    self:T( { Probability, ZoneProbability } )
+                    --self:T( { Probability, ZoneProbability } )
                     if Probability > ZoneProbability then
                       DetectionAccepted = false
                       break
@@ -40465,7 +40544,7 @@ do -- DETECTION_BASE
                 self.DetectedObjects[DetectedObjectName].Distance = Distance
                 self.DetectedObjects[DetectedObjectName].DetectionTimeStamp = DetectionTimeStamp
                 
-                self:F( { DetectedObject = self.DetectedObjects[DetectedObjectName] } )
+                --self:F( { DetectedObject = self.DetectedObjects[DetectedObjectName] } )
                 
                 local DetectedUnit = UNIT:FindByName( DetectedObjectName )
                 
@@ -40479,7 +40558,7 @@ do -- DETECTION_BASE
             --end
           end
           
-          self:T2( self.DetectedObjects )
+          --self:T2( self.DetectedObjects )
         end
         
         if HasDetectedObjects then
@@ -40489,7 +40568,6 @@ do -- DETECTION_BASE
       end
       
       if self.DetectionCount > 0 and self.DetectionRun == self.DetectionCount then
-        self:T( "--> Create Detection Sets" )
         
         -- First check if all DetectedObjects were detected.
         -- This is important. When there are DetectedObjects in the list, but were not detected,
@@ -40529,7 +40607,6 @@ do -- DETECTION_BASE
       local DetectedSet = DetectedItem.Set
       
       if DetectedSet:Count() == 0 then
-        self:F3( { DetectedItemID = DetectedItemID } )
         self:RemoveDetectedItem( DetectedItemID )
       end
 
@@ -40541,8 +40618,7 @@ do -- DETECTION_BASE
     -- @param #string UnitName The UnitName that needs to be forgotten from the DetectionItem Sets.
     -- @return #DETECTION_BASE
     function DETECTION_BASE:ForgetDetectedUnit( UnitName )
-      self:F2()
-    
+
       local DetectedItems = self:GetDetectedItems()
       
       for DetectedItemIndex, DetectedItem in pairs( DetectedItems ) do
@@ -40559,7 +40635,6 @@ do -- DETECTION_BASE
     -- @param #DETECTION_BASE self
     -- @return #DETECTION_BASE
     function DETECTION_BASE:CreateDetectionItems()
-      self:F2()
     
       self:F( "Error, in DETECTION_BASE class..." )
       return self
@@ -40942,8 +41017,7 @@ do -- DETECTION_BASE
     -- @param Dcs.DCSUnit#Unit.Category Category The category of the unit.
     -- @return #boolean true if there are friendlies nearby 
     function DETECTION_BASE:IsFriendliesNearBy( DetectedItem, Category )
-      
-      self:F( { "FriendliesNearBy Test", DetectedItem.FriendliesNearBy } )
+      --self:F( { "FriendliesNearBy Test", DetectedItem.FriendliesNearBy } )
       return ( DetectedItem.FriendliesNearBy and DetectedItem.FriendliesNearBy[Category] ~= nil ) or false
     end
   
@@ -41000,7 +41074,7 @@ do -- DETECTION_BASE
     --- Background worker function to determine if there are friendlies nearby ...
     -- @param #DETECTION_BASE self
     function DETECTION_BASE:ReportFriendliesNearBy( TargetData )
-      self:F( { "Search Friendlies", DetectedItem = TargetData.DetectedItem } )
+      --self:F( { "Search Friendlies", DetectedItem = TargetData.DetectedItem } )
       
       local DetectedItem = TargetData.DetectedItem  -- Functional.Detection#DETECTION_BASE.DetectedItem    
       local DetectedSet = TargetData.DetectedItem.Set
@@ -41049,7 +41123,7 @@ do -- DETECTION_BASE
           if FoundUnitInReportSetGroup == true then
             -- If the recce was part of the friendlies found, then check if the recce is part of the allowed friendly unit prefixes.
             for PrefixID, Prefix in pairs( self.FriendlyPrefixes or {} ) do
-              self:F( { "Friendly Prefix:", Prefix = Prefix } )
+              --self:F( { "Friendly Prefix:", Prefix = Prefix } )
               -- In case a match is found (so a recce unit name is part of the friendly prefixes), then report that recce to be part of the friendlies.
               -- This is important if CAP planes (so planes using their own radar) to be scanning for targets as part of the EWR network.
               -- But CAP planes are also attackers, so they need to be considered friendlies too!
@@ -41061,7 +41135,7 @@ do -- DETECTION_BASE
             end
           end
           
-          self:F( { "Friendlies near Target:", FoundUnitName, FoundUnitCoalition, EnemyUnitName, EnemyCoalition, FoundUnitInReportSetGroup } )
+          --self:F( { "Friendlies near Target:", FoundUnitName, FoundUnitCoalition, EnemyUnitName, EnemyCoalition, FoundUnitInReportSetGroup } )
           
           if FoundUnitCoalition ~= EnemyCoalition and FoundUnitInReportSetGroup == false then
             local FriendlyUnit = UNIT:Find( FoundDCSUnit )
@@ -41076,7 +41150,7 @@ do -- DETECTION_BASE
             local Distance = DetectedUnitCoord:Get2DDistance( FriendlyUnit:GetCoordinate() )
             DetectedItem.FriendliesDistance = DetectedItem.FriendliesDistance or {}
             DetectedItem.FriendliesDistance[Distance] = FriendlyUnit
-            self:T( { "Friendlies Found:", FriendlyUnitName = FriendlyUnitName, Distance = Distance, FriendlyUnitCategory = FriendlyUnitCategory, FriendliesCategory = self.FriendliesCategory } )
+            --self:F( { "Friendlies Found:", FriendlyUnitName = FriendlyUnitName, Distance = Distance, FriendlyUnitCategory = FriendlyUnitCategory, FriendliesCategory = self.FriendliesCategory } )
             return true
           end
           
@@ -41118,6 +41192,9 @@ do -- DETECTION_BASE
           end
         )
       end    
+
+      self:F( { Friendlies = DetectedItem.FriendliesNearBy, Players = DetectedItem.PlayersNearBy } )
+    
     end
   
   end
@@ -41649,7 +41726,6 @@ do -- DETECTION_UNITS
   -- @param #DETECTION_UNITS self
   -- @return #DETECTION_UNITS self
   function DETECTION_UNITS:CreateDetectionItems()
-    self:F2( #self.DetectedObjects )
   
     -- Loop the current detected items, and check if each object still exists and is detected.
     
@@ -41900,7 +41976,6 @@ do -- DETECTION_TYPES
   -- @param #DETECTION_TYPES self
   -- @return #DETECTION_TYPES self
   function DETECTION_TYPES:CreateDetectionItems()
-    self:F2( #self.DetectedObjects )
   
     -- Loop the current detected items, and check if each object still exists and is detected.
     
@@ -42288,10 +42363,9 @@ do -- DETECTION_AREAS
   -- @param #DETECTION_AREAS self
   -- @return #DETECTION_AREAS self
   function DETECTION_AREAS:CreateDetectionItems()
-    self:F2()
   
   
-    self:T( "Checking Detected Items for new Detected Units ..." )
+    self:T2( "Checking Detected Items for new Detected Units ..." )
     -- First go through all detected sets, and check if there are new detected units, match all existing detected units and identify undetected units.
     -- Regroup when needed, split groups when needed.
     for DetectedItemID, DetectedItemData in pairs( self.DetectedItems ) do
@@ -42300,8 +42374,7 @@ do -- DETECTION_AREAS
       
       if DetectedItem then
       
-        self:T( { "Detected Item ID:", DetectedItemID } )
-        
+        self:T2( { "Detected Item ID: ", DetectedItemID } )
       
         local DetectedSet = DetectedItem.Set
         
@@ -42430,7 +42503,6 @@ do -- DETECTION_AREAS
           
           local DetectedItem = DetectedItemData -- #DETECTION_BASE.DetectedItem
           if DetectedItem then
-            self:T( "Detection Area #" .. DetectedItem.ID )
             local DetectedSet = DetectedItem.Set
             if not self:IsDetectedObjectIdentified( DetectedObject ) and DetectedUnit:IsInZone( DetectedItem.Zone ) then
               self:IdentifyDetectedObject( DetectedObject )
@@ -62728,10 +62800,8 @@ do -- ACT_ROUTE
   -- @param #string From
   -- @param #string To
   function ACT_ROUTE:onbeforeRoute( ProcessUnit, From, Event, To )
-    self:F( { "BeforeRoute 1", self.DisplayCount, self.DisplayInterval } )
   
     if ProcessUnit:IsAlive() then
-      self:F( "BeforeRoute 2" )
       local HasArrived = self:onfuncHasArrived( ProcessUnit ) -- Polymorphic
       if self.DisplayCount >= self.DisplayInterval then
         self:T( { HasArrived = HasArrived } )
@@ -62742,8 +62812,6 @@ do -- ACT_ROUTE
       else
         self.DisplayCount = self.DisplayCount + 1
       end
-      
-      self:T( { DisplayCount = self.DisplayCount } )
       
       if HasArrived then
         self:__Arrive( 1 )
@@ -62827,7 +62895,7 @@ do -- ACT_ROUTE_POINT
   -- @param #ACT_ROUTE_POINT self
   -- @param #number Range The Range to consider the arrival. Default is 10000 meters.
   function ACT_ROUTE_POINT:SetRange( Range )
-    self:F2( { self.Range } )
+    self:F2( { Range } )
     self.Range = Range or 10000
   end  
   
@@ -62835,6 +62903,7 @@ do -- ACT_ROUTE_POINT
   -- @param #ACT_ROUTE_POINT self
   -- @return #number The Range to consider the arrival. Default is 10000 meters.
   function ACT_ROUTE_POINT:GetRange()
+    self:F2( { self.Range } )
     return self.Range
   end  
   
@@ -63659,7 +63728,7 @@ function COMMANDCENTER:New( CommandCenterPositionable, CommandCenterName )
     end
   )
 
-  -- Handle when a player leaves a slot and goes back to spectators ... 
+  -- Handle when a player crashes ... 
   -- The PlayerUnit will be UnAssigned from the Task.
   -- When there is no Unit left running the Task, the Task goes into Abort...
   self:HandleEvent( EVENTS.Crash,
@@ -64413,11 +64482,11 @@ do -- Group Assignment
     local MissionGroupName = MissionGroup:GetName()
     
     if self.AssignedGroups[MissionGroupName] == MissionGroup then
-      self:T( { "Mission is assigned to:", MissionGroup:GetName() } )
+      self:T2( { "Mission is assigned to:", MissionGroup:GetName() } )
       return true
     end
     
-    self:T( { "Mission is not assigned to:", MissionGroup:GetName() } )
+    self:T2( { "Mission is not assigned to:", MissionGroup:GetName() } )
     return false
   end
   
@@ -65210,7 +65279,7 @@ TASK = {
 -- @return #TASK self
 function TASK:New( Mission, SetGroupAssign, TaskName, TaskType, TaskBriefing )
 
-  local self = BASE:Inherit( self, FSM_TASK:New() ) -- Tasking.Task#TASK
+  local self = BASE:Inherit( self, FSM_TASK:New( TaskName ) ) -- Tasking.Task#TASK
 
   self:SetStartState( "Planned" )
   self:AddTransition( "Planned", "Assign", "Assigned" )
@@ -65671,9 +65740,11 @@ function TASK:MessageToGroups( Message )
   local Mission = self:GetMission()
   local CC = Mission:GetCommandCenter()
   
-  for TaskGroupName, TaskGroup in pairs( self.SetGroup:GetAliveSet() ) do
-    local TaskGroup = TaskGroup -- Wrapper.Group#GROUP
-    CC:MessageToGroup( Message, TaskGroup, TaskGroup:GetName() )
+  for TaskGroupName, TaskGroup in pairs( self.SetGroup:GetSet() ) do
+    TaskGroup = TaskGroup -- Wrapper.Group#GROUP
+    if TaskGroup:IsAlive() == true then
+      CC:MessageToGroup( Message, TaskGroup, TaskGroup:GetName() )
+    end
   end
 end
 
@@ -65683,10 +65754,11 @@ end
 function TASK:SendBriefingToAssignedGroups()
   self:F2()
   
-  for TaskGroupName, TaskGroup in pairs( self.SetGroup:GetAliveSet() ) do
-
-    if self:IsGroupAssigned( TaskGroup ) then    
-      TaskGroup:Message( self.TaskBriefing, 60 )
+  for TaskGroupName, TaskGroup in pairs( self.SetGroup:GetSet() ) do
+    if TaskGroup:IsAlive() then
+      if self:IsGroupAssigned( TaskGroup ) then    
+        TaskGroup:Message( self.TaskBriefing, 60 )
+      end
     end
   end
 end
@@ -65697,9 +65769,11 @@ end
 function TASK:UnAssignFromGroups()
   self:F2()
   
-  for TaskGroupName, TaskGroup in pairs( self.SetGroup:GetAliveSet() ) do
-    if self:IsGroupAssigned(TaskGroup) then
-      self:UnAssignFromGroup( TaskGroup )
+  for TaskGroupName, TaskGroup in pairs( self.SetGroup:GetSet() ) do
+    if TaskGroup:IsAlive() == true then
+      if self:IsGroupAssigned(TaskGroup) then
+        self:UnAssignFromGroup( TaskGroup )
+      end
     end
   end
 end
@@ -65712,13 +65786,15 @@ end
 function TASK:HasAliveUnits()
   self:F()
   
-  for TaskGroupID, TaskGroup in pairs( self.SetGroup:GetAliveSet() ) do
-    if self:IsStateAssigned() then
-      if self:IsGroupAssigned( TaskGroup ) then
-        for TaskUnitID, TaskUnit in pairs( TaskGroup:GetUnits() ) do
-          if TaskUnit:IsAlive() then
-            self:T( { HasAliveUnits = true } )
-            return true
+  for TaskGroupID, TaskGroup in pairs( self.SetGroup:GetSet() ) do
+    if TaskGroup:IsAlive() == true then
+      if self:IsStateAssigned() then
+        if self:IsGroupAssigned( TaskGroup ) then
+          for TaskUnitID, TaskUnit in pairs( TaskGroup:GetUnits() ) do
+            if TaskUnit:IsAlive() then
+              self:T( { HasAliveUnits = true } )
+              return true
+            end
           end
         end
       end
@@ -65831,7 +65907,7 @@ function TASK:SetAssignedMenuForGroup( TaskGroup, MenuTime )
   local TaskText = string.format( "%s%s", self:GetName(), TaskPlayerString ) --, TaskThreatLevelString )
   local TaskName = string.format( "%s", self:GetName() )
 
-  for UnitName, TaskUnit in pairs( TaskGroup:GetUnits() ) do
+  for UnitName, TaskUnit in pairs( TaskGroup:GetPlayerUnits() ) do
     local TaskUnit = TaskUnit -- Wrapper.Unit#UNIT
     if TaskUnit then
       local MenuControl = self:GetTaskControlMenu( TaskUnit )
@@ -65852,10 +65928,12 @@ end
 function TASK:RemoveMenu( MenuTime )
   self:F( { self:GetName(), MenuTime } )
 
-  for TaskGroupID, TaskGroup in pairs( self.SetGroup:GetAliveSet() ) do
-    local TaskGroup = TaskGroup -- Wrapper.Group#GROUP 
-    if TaskGroup:IsAlive() == true and TaskGroup:GetPlayerNames() then
-      self:RefreshMenus( TaskGroup, MenuTime )
+  for TaskGroupID, TaskGroup in pairs( self.SetGroup:GetSet() ) do
+    if TaskGroup:IsAlive() == true then
+      local TaskGroup = TaskGroup -- Wrapper.Group#GROUP 
+      if TaskGroup:IsAlive() == true and TaskGroup:GetPlayerNames() then
+        self:RefreshMenus( TaskGroup, MenuTime )
+      end
     end
   end
 end
@@ -66516,12 +66594,14 @@ function TASK:GetPlayerNames() --R2.1 Get a map of the players.
   local PlayerNameMap = {}
 
   -- Loop each Unit active in the Task, and find Player Names.
-  for TaskGroupID, PlayerGroup in pairs( self:GetGroups():GetAliveSet() ) do
+  for TaskGroupID, PlayerGroup in pairs( self:GetGroups():GetSet() ) do
     local PlayerGroup = PlayerGroup -- Wrapper.Group#GROUP
-    if self:IsGroupAssigned( PlayerGroup ) then
-      local PlayerNames = PlayerGroup:GetPlayerNames()
-      for PlayerNameID, PlayerName in pairs( PlayerNames ) do
-        PlayerNameMap[PlayerName] = PlayerGroup
+    if PlayerGroup:IsAlive() == true then
+      if self:IsGroupAssigned( PlayerGroup ) then
+        local PlayerNames = PlayerGroup:GetPlayerNames()
+        for PlayerNameID, PlayerName in pairs( PlayerNames ) do
+          PlayerNameMap[PlayerName] = PlayerGroup
+        end
       end
     end
   end
@@ -70424,17 +70504,9 @@ do -- TASK_CARGO
     function Fsm:onafterSelectAction( TaskUnit, Task )
       
       local TaskUnitName = TaskUnit:GetName()
-      
-      self:F( { TaskUnit = TaskUnitName, Task = Task and Task:GetClassNameAndID() } )
-
       local MenuTime = Task:InitTaskControlMenu( TaskUnit )
-      
       local MenuControl = Task:GetTaskControlMenu( TaskUnit )
-            
       local CargoItemCount = TaskUnit:CargoItemCount()
-
-      --Task:GetMission():GetCommandCenter():MessageToGroup( "Cargo in carrier: " .. CargoItemCount, TaskUnit:GetGroup() )
-
       
       Task.SetCargo:ForEachCargo(
         
