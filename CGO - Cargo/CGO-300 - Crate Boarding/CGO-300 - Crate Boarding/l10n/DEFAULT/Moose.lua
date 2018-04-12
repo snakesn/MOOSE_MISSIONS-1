@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-11T21:25:39.0000000Z-f9e6728f55f41ec662362f397f82de6f78fcc7ca ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-12T12:01:52.0000000Z-04cd2b47eb938dcfe09cfd7e266ba59dac81af73 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -18131,6 +18131,8 @@ do -- FSM
   -- @return #table
   function FSM:GetProcesses()
   
+    self:F( { Processes = self._Processes } )
+  
     return self._Processes or {}
   end
   
@@ -18139,6 +18141,18 @@ do -- FSM
     for ProcessID, Process in pairs( self:GetProcesses() ) do
       if Process.From == From and Process.Event == Event then
         return Process.fsm
+      end
+    end
+    
+    error( "Sub-Process from state " .. From .. " with event " .. Event .. " not found!" )
+  end
+  
+  function FSM:SetProcess( From, Event, Fsm )
+  
+    for ProcessID, Process in pairs( self:GetProcesses() ) do
+      if Process.From == From and Process.Event == Event then
+        Process.fsm = Fsm
+        return true
       end
     end
     
@@ -23488,10 +23502,11 @@ end
 -- @param #string Message The message text
 -- @param Dcs.DCSTYpes#Duration Duration The duration of the message.
 -- @param Dcs.DCScoalition#coalition MessageCoalition The Coalition receiving the message.
-function POSITIONABLE:MessageToCoalition( Message, Duration, MessageCoalition )
+-- @param #string Name (optional) The Name of the sender. If not provided, the Name is the type of the Positionable.
+function POSITIONABLE:MessageToCoalition( Message, Duration, MessageCoalition, Name )
   self:F2( { Message, Duration } )
 
-  local Name = ""
+  local Name = Name or ""
   
   local DCSObject = self:GetDCSObject()
   if DCSObject then
@@ -23508,10 +23523,11 @@ end
 -- @param #string Message The message text
 -- @param Core.Message#MESSAGE.Type MessageType The message type that determines the duration.
 -- @param Dcs.DCScoalition#coalition MessageCoalition The Coalition receiving the message.
-function POSITIONABLE:MessageTypeToCoalition( Message, MessageType, MessageCoalition )
+-- @param #string Name (optional) The Name of the sender. If not provided, the Name is the type of the Positionable.
+function POSITIONABLE:MessageTypeToCoalition( Message, MessageType, MessageCoalition, Name )
   self:F2( { Message, MessageType } )
 
-  local Name = ""
+  local Name = Name or ""
   
   local DCSObject = self:GetDCSObject()
   if DCSObject then
@@ -62423,8 +62439,7 @@ do -- ACT_ASSIGN_ACCEPT
   -- @param #string Event
   -- @param #string From
   -- @param #string To
-  function ACT_ASSIGN_ACCEPT:onafterStart( ProcessUnit, From, Event, To )
-    self:F( { ProcessUnit, From, Event, To } )
+  function ACT_ASSIGN_ACCEPT:onafterStart( ProcessUnit, Task, From, Event, To )
   
     self:__Assign( 1 )   
   end
@@ -62435,11 +62450,8 @@ do -- ACT_ASSIGN_ACCEPT
   -- @param #string Event
   -- @param #string From
   -- @param #string To
-  function ACT_ASSIGN_ACCEPT:onenterAssigned( ProcessUnit, From, Event, To )
-    self:F( { ProcessUnit, From, Event, To } )
+  function ACT_ASSIGN_ACCEPT:onenterAssigned( ProcessUnit, Task, From, Event, To )
   
-    local ProcessGroup = ProcessUnit:GetGroup()
-
     self.Task:Assign( ProcessUnit, ProcessUnit:GetPlayerName() )
   end
   
@@ -62460,36 +62472,26 @@ do -- ACT_ASSIGN_MENU_ACCEPT
 
   --- Init.
   -- @param #ACT_ASSIGN_MENU_ACCEPT self
-  -- @param #string TaskName
   -- @param #string TaskBriefing
   -- @return #ACT_ASSIGN_MENU_ACCEPT self
-  function ACT_ASSIGN_MENU_ACCEPT:New( TaskName, TaskBriefing )
+  function ACT_ASSIGN_MENU_ACCEPT:New( TaskBriefing )
 
     -- Inherits from BASE
     local self = BASE:Inherit( self, ACT_ASSIGN:New() ) -- #ACT_ASSIGN_MENU_ACCEPT
 
-    self.TaskName = TaskName 
     self.TaskBriefing = TaskBriefing
     
     return self
   end
 
-  function ACT_ASSIGN_MENU_ACCEPT:Init( FsmAssign )
-  
-    self.TaskName = FsmAssign.TaskName 
-    self.TaskBriefing = FsmAssign.TaskBriefing  
-  end
-  
-  
+
   --- Creates a new task assignment state machine. The process will request from the menu if it accepts the task, if not, the unit is removed from the simulator.
   -- @param #ACT_ASSIGN_MENU_ACCEPT self
-  -- @param #string TaskName
   -- @param #string TaskBriefing
   -- @return #ACT_ASSIGN_MENU_ACCEPT self
-  function ACT_ASSIGN_MENU_ACCEPT:Init( TaskName, TaskBriefing )
+  function ACT_ASSIGN_MENU_ACCEPT:Init( TaskBriefing )
   
     self.TaskBriefing = TaskBriefing
-    self.TaskName = TaskName
 
     return self
   end
@@ -62500,30 +62502,31 @@ do -- ACT_ASSIGN_MENU_ACCEPT
   -- @param #string Event
   -- @param #string From
   -- @param #string To
-  function ACT_ASSIGN_MENU_ACCEPT:onafterStart( ProcessUnit, From, Event, To )
-    self:F( { ProcessUnit, From, Event, To } )
+  function ACT_ASSIGN_MENU_ACCEPT:onafterStart( ProcessUnit, Task, From, Event, To )
 
-    self:GetCommandCenter():MessageTypeToGroup( "Access the radio menu to accept the task. You have 30 seconds or the assignment will be cancelled.", ProcessUnit:GetGroup(), MESSAGE.Type.Information )
+    self:GetCommandCenter():MessageToGroup( "Task " .. self.Task:GetName() .. " has been assigned to you and your group!\nRead the briefing and use the Radio Menu (F10) to accept the task.\nYou have 2 minutes to accept, or the task assignment will be cancelled!", ProcessUnit:GetGroup(), 120 )
    
     local ProcessGroup = ProcessUnit:GetGroup() 
+
+    self.Menu = MENU_GROUP:New( ProcessGroup, "Accept task " .. self.Task:GetName() )
+    self.MenuAcceptTask = MENU_GROUP_COMMAND:New( ProcessGroup, "Accept task " .. self.Task:GetName(), self.Menu, self.MenuAssign, self )
+    self.MenuRejectTask = MENU_GROUP_COMMAND:New( ProcessGroup, "Reject task " .. self.Task:GetName(), self.Menu, self.MenuReject, self )
     
-    self.Menu = MENU_GROUP:New( ProcessGroup, "Task " .. self.TaskName .. " acceptance" )
-    self.MenuAcceptTask = MENU_GROUP_COMMAND:New( ProcessGroup, "Accept task " .. self.TaskName, self.Menu, self.MenuAssign, self )
-    self.MenuRejectTask = MENU_GROUP_COMMAND:New( ProcessGroup, "Reject task " .. self.TaskName, self.Menu, self.MenuReject, self )
+    self:__Reject( 120, ProcessUnit )
   end
   
   --- Menu function.
   -- @param #ACT_ASSIGN_MENU_ACCEPT self
-  function ACT_ASSIGN_MENU_ACCEPT:MenuAssign()
+  function ACT_ASSIGN_MENU_ACCEPT:MenuAssign( ProcessUnit, Task, From, Event, To )
   
-    self:__Assign( 1 )
+    self:__Assign( -1 )
   end
   
   --- Menu function.
   -- @param #ACT_ASSIGN_MENU_ACCEPT self
-  function ACT_ASSIGN_MENU_ACCEPT:MenuReject()
+  function ACT_ASSIGN_MENU_ACCEPT:MenuReject( ProcessUnit, Task, From, Event, To )
   
-    self:__Reject( 1 )
+    self:__Reject( -1 )
   end
   
   --- StateMachine callback function
@@ -62532,8 +62535,7 @@ do -- ACT_ASSIGN_MENU_ACCEPT
   -- @param #string Event
   -- @param #string From
   -- @param #string To
-  function ACT_ASSIGN_MENU_ACCEPT:onafterAssign( ProcessUnit, From, Event, To )
-    self:F( { ProcessUnit.UnitNameFrom, Event, To } )
+  function ACT_ASSIGN_MENU_ACCEPT:onafterAssign( ProcessUnit, Task, From, Event, To  )
   
     self.Menu:Remove()
   end
@@ -62550,7 +62552,18 @@ do -- ACT_ASSIGN_MENU_ACCEPT
     self.Menu:Remove()
     --TODO: need to resolve this problem ... it has to do with the events ...
     --self.Task:UnAssignFromUnit( ProcessUnit )needs to become a callback funtion call upon the event
-    ProcessUnit:Destroy()
+    self.Task:Abort()
+  end
+
+  --- StateMachine callback function
+  -- @param #ACT_ASSIGN_ACCEPT self
+  -- @param Wrapper.Unit#UNIT ProcessUnit
+  -- @param #string Event
+  -- @param #string From
+  -- @param #string To
+  function ACT_ASSIGN_MENU_ACCEPT:onenterAssigned( ProcessUnit, Task, From, Event, To )
+  
+    self.Task:Assign( ProcessUnit, ProcessUnit:GetPlayerName() )
   end
 
 end -- ACT_ASSIGN_MENU_ACCEPT
@@ -63643,7 +63656,7 @@ COMMANDCENTER = {
 -- @return #COMMANDCENTER
 function COMMANDCENTER:New( CommandCenterPositionable, CommandCenterName )
 
-  local self = BASE:Inherit( self, BASE:New() )
+  local self = BASE:Inherit( self, BASE:New() ) -- #COMMANDCENTER
 
   self.CommandCenterPositionable = CommandCenterPositionable  
   self.CommandCenterName = CommandCenterName or CommandCenterPositionable:GetName()
@@ -63798,7 +63811,7 @@ end
 -- @return #list<Tasking.Mission#MISSION>
 function COMMANDCENTER:GetMissions()
 
-  return self.Missions
+  return self.Missions or {}
 end
 
 --- Add a MISSION to be governed by the HQ command center.
@@ -63887,7 +63900,7 @@ end
 --- Sets the menu structure of the Missions governed by the HQ command center.
 -- @param #COMMANDCENTER self
 function COMMANDCENTER:SetMenu()
-  self:F()
+  self:F2()
 
   local MenuTime = timer.getTime()
   for MissionID, Mission in pairs( self:GetMissions() or {} ) do
@@ -63896,7 +63909,7 @@ function COMMANDCENTER:SetMenu()
   end
 
   for MissionID, Mission in pairs( self:GetMissions() or {} ) do
-    local Mission = Mission -- Tasking.Mission#MISSION
+    Mission = Mission -- Tasking.Mission#MISSION
     Mission:RemoveMenu( MenuTime )
   end
   
@@ -63905,9 +63918,42 @@ end
 --- Gets the commandcenter menu structure governed by the HQ command center.
 -- @param #COMMANDCENTER self
 -- @return Core.Menu#MENU_COALITION
-function COMMANDCENTER:GetMenu()
-  return self.CommandCenterMenu
+function COMMANDCENTER:GetMenu( TaskGroup )
+
+  self.CommandCenterMenus = self.CommandCenterMenus or {}
+  if not self.CommandCenterMenus[TaskGroup] then
+    local CommandCenterText = self:GetText()
+    local CommandCenterMenu = MENU_GROUP:New( TaskGroup, CommandCenterText )
+    self.CommandCenterMenus[TaskGroup] = CommandCenterMenu
+    local AssignTaskMenu = MENU_GROUP_COMMAND:New( TaskGroup, "Assign Task", CommandCenterMenu, self.AssignRandomTask, self, TaskGroup )
+  end
+  return self.CommandCenterMenus[TaskGroup]
 end
+
+
+--- Assigns a random task to a TaskGroup.
+-- @param #COMMANDCENTER self
+-- @return #COMMANDCENTER
+function COMMANDCENTER:AssignRandomTask( TaskGroup )
+
+  local Tasks = {}
+
+  for MissionID, Mission in pairs( self:GetMissions() ) do
+    local Mission = Mission -- Tasking.Mission#MISSION
+    local MissionTasks = Mission:GetGroupTasks( TaskGroup )
+    for MissionTaskName, MissionTask in pairs( MissionTasks or {} ) do
+      Tasks[#Tasks+1] = MissionTask
+    end
+  end
+  
+  local Task = Tasks[ math.random( 1, #Tasks ) ] -- Tasking.Task#TASK
+  
+  Task:SetAssignMethod( ACT_ASSIGN_MENU_ACCEPT:New( Task.TaskBriefing ) )
+  
+  Task:AssignToGroup( TaskGroup )
+
+end
+
 
 --- Checks of the COMMANDCENTER has a GROUP.
 -- @param #COMMANDCENTER self
@@ -63964,7 +64010,7 @@ function COMMANDCENTER:MessageToCoalition( Message )
   local CCCoalition = self:GetPositionable():GetCoalition()
     --TODO: Fix coalition bug!
     
-    self:GetPositionable():MessageToCoalition( Message, 15, CCCoalition )
+    self:GetPositionable():MessageToCoalition( Message, 15, CCCoalition, self:GetShortText() )
 
 end
 
@@ -63978,7 +64024,7 @@ function COMMANDCENTER:MessageTypeToCoalition( Message, MessageType )
   local CCCoalition = self:GetPositionable():GetCoalition()
     --TODO: Fix coalition bug!
     
-    self:GetPositionable():MessageTypeToCoalition( Message, MessageType, CCCoalition )
+    self:GetPositionable():MessageTypeToCoalition( Message, MessageType, CCCoalition, self:GetShortText() )
 
 end
 
@@ -64563,17 +64609,12 @@ end
 function MISSION:GetMenu( TaskGroup ) -- R2.1 -- Changed Menu Structure
 
   local CommandCenter = self:GetCommandCenter()
-  local CommandCenterMenu = CommandCenter:GetMenu()
+  local CommandCenterMenu = CommandCenter:GetMenu( TaskGroup )
 
-  --local MissionMenu = CommandCenterMenu:GetMenu( MissionName )
-  
   self.MissionGroupMenu = self.MissionGroupMenu or {}
   self.MissionGroupMenu[TaskGroup] = self.MissionGroupMenu[TaskGroup] or {}
   
   local GroupMenu = self.MissionGroupMenu[TaskGroup]
-  
-  local CommandCenterText = CommandCenter:GetText()
-  CommandCenterMenu = MENU_GROUP:New( TaskGroup, CommandCenterText )
   
   local MissionText = self:GetText()
   self.MissionMenu = MENU_GROUP:New( TaskGroup, MissionText, CommandCenterMenu )
@@ -64603,7 +64644,7 @@ end
 -- @param #string TaskName The Name of the @{Task} within the @{Mission}.
 -- @return Tasking.Task#TASK The Task
 -- @return #nil Returns nil if no task was found.
-function MISSION:GetTask( TaskName  )
+function MISSION:GetTask( TaskName )
   self:F( { TaskName } )
 
   return self.Tasks[TaskName]
@@ -65044,8 +65085,27 @@ end
 -- env.info( "Task 2 Completion = " .. Tasks[2]:GetGoalPercentage() .. "%" )
 function MISSION:GetTasks()
 
-	return self.Tasks
+	return self.Tasks or {}
 end
+
+--- Get the relevant tasks of a TaskGroup.
+-- @param #MISSION
+-- @param Wrapper.Group#GROUP TaskGroup
+-- @return #list<Tasking.Task#TASK>
+function MISSION:GetGroupTasks( TaskGroup )
+
+  local Tasks = {}
+  
+  for TaskID, Task in pairs( self:GetTasks() ) do
+    local Task = Task -- Tasking.Task#TASK
+    if Task:HasGroup( TaskGroup ) then
+      Tasks[#Tasks+1] = Task
+    end
+  end
+  
+  return Tasks
+end
+
 
 --- Reports the briefing.
 -- @param #MISSION self
@@ -65287,9 +65347,15 @@ function TASK:New( Mission, SetGroupAssign, TaskName, TaskType, TaskBriefing )
   self:AddTransition( "Assigned", "Success", "Success" )
   self:AddTransition( "Assigned", "Hold", "Hold" )
   self:AddTransition( "Assigned", "Fail", "Failed" )
-  self:AddTransition( "Assigned", "Abort", "Aborted" )
+  self:AddTransition( { "Planned", "Assigned" }, "Abort", "Aborted" )
   self:AddTransition( "Assigned", "Cancel", "Cancelled" )
   self:AddTransition( "Assigned", "Goal", "*" )
+  
+  self.Fsm = {}
+  
+  local Fsm = self:GetUnitProcess()
+  Fsm:SetStartState( "Planned" )
+  Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "SelectAction", Rejected = "Reject" }  )
   
   --- Goal Handler OnBefore for TASK
   -- @function [parent=#TASK] OnBeforeGoal
@@ -65334,7 +65400,6 @@ function TASK:New( Mission, SetGroupAssign, TaskName, TaskType, TaskBriefing )
   self:F( "New TASK " .. TaskName )
 
   self.Processes = {}
-  self.Fsm = {}
 
   self.Mission = Mission
   self.CommandCenter = Mission:GetCommandCenter()
@@ -65347,7 +65412,6 @@ function TASK:New( Mission, SetGroupAssign, TaskName, TaskType, TaskBriefing )
 
   self:SetBriefing( TaskBriefing )
   
-  self.FsmTemplate = self.FsmTemplate or FSM_PROCESS:New()
   
   self.TaskInfo = TASKINFO:New( self )
   
@@ -65364,7 +65428,8 @@ function TASK:GetUnitProcess( TaskUnit )
   if TaskUnit then
     return self:GetStateMachine( TaskUnit )
   else
-    return self.FsmTemplate
+    self.FsmTemplate = self.FsmTemplate or FSM_PROCESS:New()
+    return self.FsmTemplate 
   end
 end
 
@@ -65618,6 +65683,16 @@ end
 
 do -- Group Assignment
 
+  --- @param #TASK self
+  -- @param Actions.Act_Assign#ACT_ASSIGN AcceptClass
+  function TASK:SetAssignMethod( AcceptClass )
+  
+    local ProcessTemplate = self:GetUnitProcess()
+
+    ProcessTemplate:SetProcess( "Planned", "Accept", AcceptClass ) -- Actions.Act_Assign#ACT_ASSIGN
+  end
+
+
   --- Assign the @{Task} to a @{Group}.
   -- @param #TASK self
   -- @param Wrapper.Group#GROUP TaskGroup
@@ -65857,20 +65932,13 @@ function TASK:SetPlannedMenuForGroup( TaskGroup, MenuTime )
 
   local Mission = self:GetMission()
   local MissionName = Mission:GetName()
-  local CommandCenter = Mission:GetCommandCenter()
-  local CommandCenterMenu = CommandCenter:GetMenu()
+  local MissionMenu = Mission:GetMenu( TaskGroup )
 
   local TaskType = self:GetType()
   local TaskPlayerCount = self:GetPlayerCount()
   local TaskPlayerString = string.format( " (%dp)", TaskPlayerCount )
---  local TaskText = string.format( "%s%s", self:GetName(), TaskPlayerString ) --, TaskThreatLevelString )
   local TaskText = string.format( "%s", self:GetName() )
   local TaskName = string.format( "%s", self:GetName() )
-
-  local MissionMenu = Mission:GetMenu( TaskGroup )
-  --local MissionMenu = MENU_GROUP:New( TaskGroup, MissionName, CommandCenterMenu ):SetTime( MenuTime )
-  
-  --local MissionMenu = Mission:GetMenu( TaskGroup )
 
   self.MenuPlanned = self.MenuPlanned or {}
   self.MenuPlanned[TaskGroup] = MENU_GROUP_DELAYED:New( TaskGroup, "Join Planned Task", MissionMenu, Mission.MenuReportTasksPerStatus, Mission, TaskGroup, "Planned" ):SetTime( MenuTime ):SetTag( "Tasking" )
@@ -65895,11 +65963,6 @@ end
 -- @return #TASK self
 function TASK:SetAssignedMenuForGroup( TaskGroup, MenuTime )
   self:F( { TaskGroup:GetName(), MenuTime } )
-
-  local Mission = self:GetMission()
-  local MissionName = Mission:GetName()
-  local CommandCenter = Mission:GetCommandCenter()
-  local CommandCenterMenu = CommandCenter:GetMenu()
 
   local TaskType = self:GetType()
   local TaskPlayerCount = self:GetPlayerCount()
@@ -65949,9 +66012,6 @@ function TASK:RefreshMenus( TaskGroup, MenuTime )
 
   local Mission = self:GetMission()
   local MissionName = Mission:GetName()
-  local CommandCenter = Mission:GetCommandCenter()
-  local CommandCenterMenu = CommandCenter:GetMenu()
-
   local MissionMenu = Mission:GetMenu( TaskGroup )
 
   local TaskName = self:GetName()
@@ -65983,7 +66043,6 @@ function TASK:RemoveAssignedMenuForGroup( TaskGroup )
 
   local Mission = self:GetMission()
   local MissionName = Mission:GetName()
-  
   local MissionMenu = Mission:GetMenu( TaskGroup )
   
   if MissionMenu then
@@ -66341,12 +66400,16 @@ function TASK:onenterAssigned( From, Event, To, PlayerUnit, PlayerName )
 
   --- This test is required, because the state transition will be fired also when the state does not change in case of an event.  
   if From ~= "Assigned" then
-    self:F( { From, Event, To, PlayerUnit:GetName(), PlayerName } )
 
-    self:GetMission():GetCommandCenter():MessageToCoalition( "Task " .. self:GetName() .. " is assigned." )
-    
+    local PlayerNames = self:GetPlayerNames()
+    local PlayerText = REPORT:New()
+    for PlayerName, TaskName in pairs( PlayerNames ) do
+      PlayerText:Add( PlayerName )
+    end
+
+    self:GetMission():GetCommandCenter():MessageToCoalition( "Task " .. self:GetName() .. " is assigned to players " .. PlayerText:Text(",") .. ". Good Luck!" )
+
     -- Set the total Progress to be achieved.
-    
     self:SetGoalTotal() -- Polymorphic to set the initial goal total!
     
     if self.Dispatcher then
@@ -66362,7 +66425,7 @@ function TASK:onenterAssigned( From, Event, To, PlayerUnit, PlayerName )
     self:SetMenu()
 
     self:F( { "--> Task Assigned", TaskName = self:GetName(), Mission = self:GetMission():GetName() } )
-    self:F( { "--> Task Player Names", PlayerNames = self:GetPlayerNames() } )
+    self:F( { "--> Task Player Names", PlayerNames = PlayerNames } )
 
   end
 end
@@ -70458,9 +70521,9 @@ do -- TASK_CARGO
     
     local Fsm = self:GetUnitProcess()
     
-    Fsm:SetStartState( "Planned" )
-
-    Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "SelectAction", Rejected = "Reject" }  )
+--    Fsm:SetStartState( "Planned" )
+--
+--    Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "SelectAction", Rejected = "Reject" }  )
     
     Fsm:AddTransition( { "Planned", "Assigned", "Cancelled", "WaitingForCommand", "ArrivedAtPickup", "ArrivedAtDeploy", "Boarded", "UnBoarded", "Loaded", "UnLoaded", "Landed", "Boarding" }, "SelectAction", "*" )
 
