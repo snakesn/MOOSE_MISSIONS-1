@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-13T07:57:19.0000000Z-d842232a4e0bff761773cf705c326b5f6e332029 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-13T10:24:18.0000000Z-9f448ffe60327c3fc762247353afc1afe7129580 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -21446,7 +21446,10 @@ function SPAWN:_GetTemplate( SpawnTemplatePrefix )
 
 	local SpawnTemplate = nil
 
-	SpawnTemplate = routines.utils.deepCopy( _DATABASE.Templates.Groups[SpawnTemplatePrefix].Template )
+  local Template = _DATABASE.Templates.Groups[SpawnTemplatePrefix].Template
+  self:F( { Template = Template } )
+
+	SpawnTemplate = UTILS.DeepCopy( _DATABASE.Templates.Groups[SpawnTemplatePrefix].Template )
 	
 	if SpawnTemplate == nil then
 		error( 'No Template returned for SpawnTemplatePrefix = ' .. SpawnTemplatePrefix )
@@ -21468,11 +21471,12 @@ end
 function SPAWN:_Prepare( SpawnTemplatePrefix, SpawnIndex ) --R2.2
 	self:F( { self.SpawnTemplatePrefix, self.SpawnAliasPrefix } )
 	
-	if not self.SpawnTemplate then
-	  self.SpawnTemplate = self:_GetTemplate( SpawnTemplatePrefix )
-	end
+--	if not self.SpawnTemplate then
+--	  self.SpawnTemplate = self:_GetTemplate( SpawnTemplatePrefix )
+--	end
 	
-	local SpawnTemplate = self.SpawnTemplate
+  local SpawnTemplate = self:_GetTemplate( SpawnTemplatePrefix )
+	--local SpawnTemplate = self.SpawnTemplate
 	SpawnTemplate.name = self:SpawnGroupName( SpawnIndex )
 	
 	SpawnTemplate.groupId = nil
@@ -21565,7 +21569,7 @@ function SPAWN:_RandomizeTemplate( SpawnIndex )
   if self.SpawnRandomizeTemplate then
     self.SpawnGroups[SpawnIndex].SpawnTemplatePrefix = self.SpawnTemplatePrefixTable[ math.random( 1, #self.SpawnTemplatePrefixTable ) ]
     self.SpawnGroups[SpawnIndex].SpawnTemplate = self:_Prepare( self.SpawnGroups[SpawnIndex].SpawnTemplatePrefix, SpawnIndex )
-    self.SpawnGroups[SpawnIndex].SpawnTemplate.route = routines.utils.deepCopy( self.SpawnTemplate.route )
+    self.SpawnGroups[SpawnIndex].SpawnTemplate.route = UTILS.DeepCopy( self.SpawnTemplate.route )
     self.SpawnGroups[SpawnIndex].SpawnTemplate.x = self.SpawnTemplate.x
     self.SpawnGroups[SpawnIndex].SpawnTemplate.y = self.SpawnTemplate.y
     self.SpawnGroups[SpawnIndex].SpawnTemplate.start_time = self.SpawnTemplate.start_time
