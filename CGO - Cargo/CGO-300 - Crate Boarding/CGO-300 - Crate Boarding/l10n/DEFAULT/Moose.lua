@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-12T12:01:52.0000000Z-04cd2b47eb938dcfe09cfd7e266ba59dac81af73 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-12T18:05:52.0000000Z-516ffcbaf38e668ec21898f013c59ca521b0414f ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -7807,8 +7807,8 @@ do
       self:RemoveSubMenus( MenuTime, MenuTag )
       if not MenuTime or self.MenuTime ~= MenuTime then
         if ( not MenuTag ) or ( MenuTag and self.MenuTag and MenuTag == self.MenuTag ) then
-          self:F( { Group = self.GroupID, Text = self.MenuText, Path = self.MenuPath } )
           if self.MenuPath ~= nil then
+            self:F( { Group = self.GroupID, Text = self.MenuText, Path = self.MenuPath } )
             missionCommands.removeItemForGroup( self.GroupID, self.MenuPath )
           end
           MENU_INDEX:ClearGroupMenu( self.Group, Path )
@@ -7899,8 +7899,8 @@ do
     if GroupMenu == self then
       if not MenuTime or self.MenuTime ~= MenuTime then
         if ( not MenuTag ) or ( MenuTag and self.MenuTag and MenuTag == self.MenuTag ) then
-          self:F( { Group = self.GroupID, Text = self.MenuText, Path = self.MenuPath } )
           if self.MenuPath ~= nil then
+           self:F( { Group = self.GroupID, Text = self.MenuText, Path = self.MenuPath } )
             missionCommands.removeItemForGroup( self.GroupID, self.MenuPath )
           end
           MENU_INDEX:ClearGroupMenu( self.Group, Path )
@@ -8040,8 +8040,8 @@ do
       self:RemoveSubMenus( MenuTime, MenuTag )
       if not MenuTime or self.MenuTime ~= MenuTime then
         if ( not MenuTag ) or ( MenuTag and self.MenuTag and MenuTag == self.MenuTag ) then
-          self:F( { Group = self.GroupID, Text = self.MenuText, Path = self.MenuPath } )
           if self.MenuPath ~= nil then
+            self:F( { Group = self.GroupID, Text = self.MenuText, Path = self.MenuPath } )
             missionCommands.removeItemForGroup( self.GroupID, self.MenuPath )
           end
           MENU_INDEX:ClearGroupMenu( self.Group, Path )
@@ -8151,8 +8151,8 @@ do
     if GroupMenu == self then
       if not MenuTime or self.MenuTime ~= MenuTime then
         if ( not MenuTag ) or ( MenuTag and self.MenuTag and MenuTag == self.MenuTag ) then
-          self:F( { Group = self.GroupID, Text = self.MenuText, Path = self.MenuPath } )
           if self.MenuPath ~= nil then
+            self:F( { Group = self.GroupID, Text = self.MenuText, Path = self.MenuPath } )
             missionCommands.removeItemForGroup( self.GroupID, self.MenuPath )
           end
           MENU_INDEX:ClearGroupMenu( self.Group, Path )
@@ -28118,6 +28118,26 @@ do -- Players
     
     return nil
   end
+
+
+  --- Get the active player count in the group.
+  -- @param #GROUP self
+  -- @return #number The amount of players.
+  function GROUP:GetPlayerCount()
+  
+    local PlayerCount = 0
+    
+    local Units = self:GetUnits()
+    for UnitID, UnitData in pairs( Units or {} ) do
+      local Unit = UnitData -- Wrapper.Unit#UNIT
+      local PlayerName = Unit:GetPlayerName()
+      if PlayerName and PlayerName ~= "" then
+        PlayerCount = PlayerCount + 1
+      end   
+    end
+
+    return PlayerCount
+  end
   
 end
 
@@ -28562,7 +28582,7 @@ function UNIT:GetPlayerName()
   if DCSUnit then
   
     local PlayerName = DCSUnit:getPlayerName()
-    -- TODO - Workaround for DCS-BUG-3
+    -- TODO Workaround DCS-BUG-3 - https://github.com/FlightControl-Master/MOOSE/issues/696
     if PlayerName == nil or PlayerName == "" then
       local PlayerCategory = DCSUnit:getDesc().category
       if PlayerCategory == Unit.Category.GROUND_UNIT or PlayerCategory == Unit.Category.SHIP then
@@ -62504,29 +62524,29 @@ do -- ACT_ASSIGN_MENU_ACCEPT
   -- @param #string To
   function ACT_ASSIGN_MENU_ACCEPT:onafterStart( ProcessUnit, Task, From, Event, To )
 
-    self:GetCommandCenter():MessageToGroup( "Task " .. self.Task:GetName() .. " has been assigned to you and your group!\nRead the briefing and use the Radio Menu (F10) to accept the task.\nYou have 2 minutes to accept, or the task assignment will be cancelled!", ProcessUnit:GetGroup(), 120 )
+    self:GetCommandCenter():MessageToGroup( "Task " .. self.Task:GetName() .. " has been assigned to you and your group!\nRead the briefing and use the Radio Menu (F10) / Task ... CONFIRMATION menu to accept or reject the task.\nYou have 2 minutes to accept, or the task assignment will be cancelled!", ProcessUnit:GetGroup(), 120 )
    
-    local ProcessGroup = ProcessUnit:GetGroup() 
+    local TaskGroup = ProcessUnit:GetGroup() 
 
-    self.Menu = MENU_GROUP:New( ProcessGroup, "Accept task " .. self.Task:GetName() )
-    self.MenuAcceptTask = MENU_GROUP_COMMAND:New( ProcessGroup, "Accept task " .. self.Task:GetName(), self.Menu, self.MenuAssign, self )
-    self.MenuRejectTask = MENU_GROUP_COMMAND:New( ProcessGroup, "Reject task " .. self.Task:GetName(), self.Menu, self.MenuReject, self )
+    self.Menu = MENU_GROUP:New( TaskGroup, "Task " .. self.Task:GetName() .. " CONFIRMATION" )
+    self.MenuAcceptTask = MENU_GROUP_COMMAND:New( TaskGroup, "Accept task " .. self.Task:GetName(), self.Menu, self.MenuAssign, self, TaskGroup )
+    self.MenuRejectTask = MENU_GROUP_COMMAND:New( TaskGroup, "Reject task " .. self.Task:GetName(), self.Menu, self.MenuReject, self, TaskGroup )
     
-    self:__Reject( 120, ProcessUnit )
+    self:__Reject( 120, TaskGroup )
   end
   
   --- Menu function.
   -- @param #ACT_ASSIGN_MENU_ACCEPT self
-  function ACT_ASSIGN_MENU_ACCEPT:MenuAssign( ProcessUnit, Task, From, Event, To )
+  function ACT_ASSIGN_MENU_ACCEPT:MenuAssign( TaskGroup )
   
-    self:__Assign( -1 )
+    self:__Assign( -1, TaskGroup )
   end
   
   --- Menu function.
   -- @param #ACT_ASSIGN_MENU_ACCEPT self
-  function ACT_ASSIGN_MENU_ACCEPT:MenuReject( ProcessUnit, Task, From, Event, To )
+  function ACT_ASSIGN_MENU_ACCEPT:MenuReject( TaskGroup )
   
-    self:__Reject( -1 )
+    self:__Reject( -1, TaskGroup )
   end
   
   --- StateMachine callback function
@@ -62535,7 +62555,7 @@ do -- ACT_ASSIGN_MENU_ACCEPT
   -- @param #string Event
   -- @param #string From
   -- @param #string To
-  function ACT_ASSIGN_MENU_ACCEPT:onafterAssign( ProcessUnit, Task, From, Event, To  )
+  function ACT_ASSIGN_MENU_ACCEPT:onafterAssign( ProcessUnit, Task, From, Event, To, TaskGroup  )
   
     self.Menu:Remove()
   end
@@ -62546,13 +62566,13 @@ do -- ACT_ASSIGN_MENU_ACCEPT
   -- @param #string Event
   -- @param #string From
   -- @param #string To
-  function ACT_ASSIGN_MENU_ACCEPT:onafterReject( ProcessUnit, From, Event, To )
-    self:F( { ProcessUnit.UnitName, From, Event, To } )
+  function ACT_ASSIGN_MENU_ACCEPT:onafterReject( ProcessUnit, Task, From, Event, To, TaskGroup )
+    self:F( { TaskGroup = TaskGroup } )
   
     self.Menu:Remove()
     --TODO: need to resolve this problem ... it has to do with the events ...
     --self.Task:UnAssignFromUnit( ProcessUnit )needs to become a callback funtion call upon the event
-    self.Task:Abort()
+    self.Task:RejectGroup( TaskGroup )
   end
 
   --- StateMachine callback function
@@ -62561,8 +62581,9 @@ do -- ACT_ASSIGN_MENU_ACCEPT
   -- @param #string Event
   -- @param #string From
   -- @param #string To
-  function ACT_ASSIGN_MENU_ACCEPT:onenterAssigned( ProcessUnit, Task, From, Event, To )
+  function ACT_ASSIGN_MENU_ACCEPT:onenterAssigned( ProcessUnit, Task, From, Event, To, TaskGroup )
   
+    --self.Task:AssignToGroup( TaskGroup )
     self.Task:Assign( ProcessUnit, ProcessUnit:GetPlayerName() )
   end
 
@@ -63661,6 +63682,8 @@ function COMMANDCENTER:New( CommandCenterPositionable, CommandCenterName )
   self.CommandCenterPositionable = CommandCenterPositionable  
   self.CommandCenterName = CommandCenterName or CommandCenterPositionable:GetName()
   self.CommandCenterCoalition = CommandCenterPositionable:GetCoalition()
+  
+  self.AutoAssignTasks = false
 	
 	self.Missions = {}
 
@@ -63920,13 +63943,23 @@ end
 -- @return Core.Menu#MENU_COALITION
 function COMMANDCENTER:GetMenu( TaskGroup )
 
+  local MenuTime = timer.getTime()
+
   self.CommandCenterMenus = self.CommandCenterMenus or {}
-  if not self.CommandCenterMenus[TaskGroup] then
-    local CommandCenterText = self:GetText()
-    local CommandCenterMenu = MENU_GROUP:New( TaskGroup, CommandCenterText )
-    self.CommandCenterMenus[TaskGroup] = CommandCenterMenu
-    local AssignTaskMenu = MENU_GROUP_COMMAND:New( TaskGroup, "Assign Task", CommandCenterMenu, self.AssignRandomTask, self, TaskGroup )
+  local CommandCenterMenu
+  
+  local CommandCenterText = self:GetText()
+  CommandCenterMenu = MENU_GROUP:New( TaskGroup, CommandCenterText ):SetTime(MenuTime)
+  self.CommandCenterMenus[TaskGroup] = CommandCenterMenu
+
+  if self.AutoAssignTasks == false then
+    local AutoAssignTaskMenu = MENU_GROUP_COMMAND:New( TaskGroup, "Assign Task On", CommandCenterMenu, self.SetAutoAssignTasks, self, true ):SetTime(MenuTime):SetTag("AutoTask")
+    local AssignTaskMenu = MENU_GROUP_COMMAND:New( TaskGroup, "Assign Task", CommandCenterMenu, self.AssignRandomTask, self, TaskGroup ):SetTime(MenuTime):SetTag("AutoTask")
+  else
+    local AutoAssignTaskMenu = MENU_GROUP_COMMAND:New( TaskGroup, "Assign Task Off", CommandCenterMenu, self.SetAutoAssignTasks, self, false ):SetTime(MenuTime):SetTag("AutoTask")
   end
+  CommandCenterMenu:Remove( MenuTime, "AutoTask" )
+    
   return self.CommandCenterMenus[TaskGroup]
 end
 
@@ -63952,6 +63985,86 @@ function COMMANDCENTER:AssignRandomTask( TaskGroup )
   
   Task:AssignToGroup( TaskGroup )
 
+end
+
+
+--- Automatically assigns tasks to all TaskGroups.
+-- @param #COMMANDCENTER self
+-- @param #boolean AutoAssign true for ON and false or nil for OFF.
+-- @return #COMMANDCENTER
+function COMMANDCENTER:SetAutoAssignTasks( AutoAssign )
+
+  self.AutoAssignTasks = AutoAssign or false
+  
+  local GroupSet = self:AddGroups()
+
+  for GroupID, TaskGroup in pairs( GroupSet:GetSet() ) do
+    local TaskGroup = TaskGroup -- Wrapper.Group#GROUP
+    self:GetMenu( TaskGroup )
+  end
+
+  if self.AutoAssignTasks == true then
+    self:ScheduleRepeat( 10, 30, 0, nil, self.AssignTasks, self )
+  else
+    self:ScheduleStop( self.AssignTasks )
+  end
+
+end
+
+
+--- Automatically assigns tasks to all TaskGroups.
+-- @param #COMMANDCENTER self
+function COMMANDCENTER:AssignTasks()
+
+  local GroupSet = self:AddGroups()
+
+  for GroupID, TaskGroup in pairs( GroupSet:GetSet() ) do
+    local TaskGroup = TaskGroup -- Wrapper.Group#GROUP
+    
+    if self:IsGroupAssigned( TaskGroup ) then
+    else
+      -- Only groups with planes or helicopters will receive automatic tasks.
+      -- TODO Workaround DCS-BUG-3 - https://github.com/FlightControl-Master/MOOSE/issues/696
+      if TaskGroup:IsAir() then
+        self:AssignRandomTask( TaskGroup )
+      end
+    end
+  end
+end
+
+
+--- Get all the Groups active within the command center.
+-- @param #COMMANDCENTER self
+-- @return Core.Set#SET_GROUP
+function COMMANDCENTER:AddGroups()
+
+  local GroupSet = SET_GROUP:New()
+  
+  for MissionID, Mission in pairs( self.Missions ) do
+    local Mission = Mission -- Tasking.Mission#MISSION
+    GroupSet = Mission:AddGroups( GroupSet )
+  end
+  
+  return GroupSet
+end
+
+
+--- Checks of the TaskGroup has a Task.
+-- @param #COMMANDCENTER self
+-- @return #boolean
+function COMMANDCENTER:IsGroupAssigned( TaskGroup )
+
+  local Assigned = false
+  
+  for MissionID, Mission in pairs( self.Missions ) do
+    local Mission = Mission -- Tasking.Mission#MISSION
+    if Mission:IsGroupAssigned( TaskGroup ) then
+      Assigned = true
+      break
+    end
+  end
+  
+  return Assigned
 end
 
 
@@ -64462,24 +64575,30 @@ function MISSION:GetScoring()
   return self.Scoring
 end
 
---- Get the groups for which TASKS are given in the mission
+--- Gets the groups for which TASKS are given in the mission
 -- @param #MISSION self
+-- @param Core.Set#SET_GROUP GroupSet
 -- @return Core.Set#SET_GROUP
 function MISSION:GetGroups()
   
-  local SetGroup = SET_GROUP:New()
+  return self:AddGroups()
+  
+end
+
+--- Adds the groups for which TASKS are given in the mission
+-- @param #MISSION self
+-- @param Core.Set#SET_GROUP GroupSet
+-- @return Core.Set#SET_GROUP
+function MISSION:AddGroups( GroupSet )
+  
+  GroupSet = GroupSet or SET_GROUP:New()
   
   for TaskID, Task in pairs( self:GetTasks() ) do
     local Task = Task -- Tasking.Task#TASK
-    local GroupSet = Task:GetGroups()
-    GroupSet:ForEachGroup(
-      function( TaskGroup )
-        SetGroup:Add( TaskGroup, TaskGroup )
-      end
-    )
+    GroupSet = Task:AddGroups( GroupSet )
   end
   
-  return SetGroup
+  return GroupSet
   
 end
 
@@ -65393,6 +65512,7 @@ function TASK:New( Mission, SetGroupAssign, TaskName, TaskType, TaskBriefing )
   
   self:AddTransition( "*", "PlayerCrashed", "*" )
   self:AddTransition( "*", "PlayerAborted", "*" )
+  self:AddTransition( "*", "PlayerRejected", "*" )
   self:AddTransition( "*", "PlayerDead", "*" )
   self:AddTransition( { "Failed", "Aborted", "Cancelled" }, "Replan", "Planned" )
   self:AddTransition( "*", "TimeOut", "Cancelled" )
@@ -65478,34 +65598,61 @@ function TASK:JoinUnit( PlayerUnit, PlayerGroup )
   return PlayerUnitAdded
 end
 
---- Abort a PlayerUnit from a Task.
--- If the Unit was not part of the Task, false is returned.
--- If the Unit is part of the Task, true is returned.
+--- A group rejecting a planned task.
 -- @param #TASK self
--- @param Wrapper.Unit#UNIT PlayerUnit The CLIENT or UNIT of the Player aborting the Task.
+-- @param Wrapper.Group#GROUP PlayerGroup The group rejecting the task.
 -- @return #TASK
-function TASK:AbortGroup( PlayerGroup )
-  self:F( { PlayerGroup = PlayerGroup } )
+function TASK:RejectGroup( PlayerGroup )
   
   local PlayerGroups = self:GetGroups()
 
   -- Is the PlayerGroup part of the PlayerGroups?  
   if PlayerGroups:IsIncludeObject( PlayerGroup ) then
   
-    -- Check if the PlayerGroup is already assigned to the Task. If yes, the PlayerGroup is aborted from the Task.
+    -- Check if the PlayerGroup is already assigned or is planned to be assigned to the Task. 
+    -- If yes, the PlayerGroup is aborted from the Task.
     -- If the PlayerUnit was the last unit of the PlayerGroup, the menu needs to be removed from the Group.
-    if self:IsStateAssigned() then
+    if self:IsStatePlanned() then
+
       local IsGroupAssigned = self:IsGroupAssigned( PlayerGroup )
-      self:F( { IsGroupAssigned = IsGroupAssigned } )
       if IsGroupAssigned then
         local PlayerName = PlayerGroup:GetUnit(1):GetPlayerName()
-        --self:MessageToGroups( PlayerName .. " aborted Task " .. self:GetName() )
+        self:GetMission():GetCommandCenter():MessageToGroup( "Task " .. self:GetName() .. " has been rejected! We will select another task.", PlayerGroup )
         self:UnAssignFromGroup( PlayerGroup )
-        --self:Abort()
+
+        self:PlayerRejected( PlayerGroup:GetUnit(1) )
+      end
+      
+    end
+  end
+  
+  return self
+end
+
+
+--- A group aborting the task.
+-- @param #TASK self
+-- @param Wrapper.Group#GROUP PlayerGroup The group aborting the task.
+-- @return #TASK
+function TASK:AbortGroup( PlayerGroup )
+  
+  local PlayerGroups = self:GetGroups()
+
+  -- Is the PlayerGroup part of the PlayerGroups?  
+  if PlayerGroups:IsIncludeObject( PlayerGroup ) then
+  
+    -- Check if the PlayerGroup is already assigned or is planned to be assigned to the Task. 
+    -- If yes, the PlayerGroup is aborted from the Task.
+    -- If the PlayerUnit was the last unit of the PlayerGroup, the menu needs to be removed from the Group.
+    if self:IsStateAssigned() then
+
+      local IsGroupAssigned = self:IsGroupAssigned( PlayerGroup )
+      if IsGroupAssigned then
+        local PlayerName = PlayerGroup:GetUnit(1):GetPlayerName()
+        self:UnAssignFromGroup( PlayerGroup )
 
         -- Now check if the task needs to go to hold...
         -- It will go to hold, if there are no players in the mission...
-        
         PlayerGroups:Flush( self )
         local IsRemaining = false
         for GroupName, AssignedGroup in pairs( PlayerGroups:GetSet() or {} ) do
@@ -65530,11 +65677,10 @@ function TASK:AbortGroup( PlayerGroup )
   return self
 end
 
---- A PlayerUnit crashed in a Task. Abort the Player.
--- If the Unit was not part of the Task, false is returned.
--- If the Unit is part of the Task, true is returned.
+
+--- A group crashing and thus aborting from the task.
 -- @param #TASK self
--- @param Wrapper.Unit#UNIT PlayerUnit The CLIENT or UNIT of the Player aborting the Task.
+-- @param Wrapper.Group#GROUP PlayerGroup The group aborting the task.
 -- @return #TASK
 function TASK:CrashGroup( PlayerGroup )
   self:F( { PlayerGroup = PlayerGroup } )
@@ -65596,7 +65742,27 @@ end
 -- @param #TASK self
 -- @return Core.Set#SET_GROUP
 function TASK:GetGroups()
+
   return self.SetGroup
+end
+
+
+--- Gets the SET_GROUP assigned to the TASK.
+-- @param #TASK self
+-- @param Core.Set#SET_GROUP GroupSet
+-- @return Core.Set#SET_GROUP
+function TASK:AddGroups( GroupSet )
+
+  GroupSet = GroupSet or SET_GROUP:New()
+ 
+  self.SetGroup:ForEachGroup(
+    --- @param Wrapper.Group#GROUP GroupSet
+    function( GroupItem )
+      GroupSet:Add( GroupItem:GetName(), GroupItem)
+    end
+  )
+  
+  return GroupSet
 end
 
 do -- Group Assignment
@@ -65975,7 +66141,9 @@ function TASK:SetAssignedMenuForGroup( TaskGroup, MenuTime )
     if TaskUnit then
       local MenuControl = self:GetTaskControlMenu( TaskUnit )
       local TaskControl = MENU_GROUP:New( TaskGroup, "Control Task", MenuControl ):SetTime( MenuTime ):SetTag( "Tasking" )
-      local TaskMenu = MENU_GROUP_COMMAND:New( TaskGroup, string.format( "Abort Task" ), TaskControl, self.MenuTaskAbort, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
+      if self:IsStateAssigned() then
+        local TaskMenu = MENU_GROUP_COMMAND:New( TaskGroup, string.format( "Abort Task" ), TaskControl, self.MenuTaskAbort, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
+      end
       local MarkMenu = MENU_GROUP_COMMAND:New( TaskGroup, string.format( "Mark Task Location on Map" ), TaskControl, self.MenuMarkToGroup, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
       local TaskTypeMenu = MENU_GROUP_COMMAND:New( TaskGroup, string.format( "Report Task Details" ), TaskControl, self.MenuTaskStatus, self, TaskGroup ):SetTime( MenuTime ):SetTag( "Tasking" )
     end
@@ -66467,6 +66635,7 @@ function TASK:onenterAborted( From, Event, To )
   
 end
 
+
 --- FSM function for a TASK
 -- @param #TASK self
 -- @param #string From
@@ -66819,7 +66988,14 @@ do -- Task Control Menu
   
     TaskName = TaskName or ""
     
-    self.TaskControlMenu = MENU_GROUP:New( TaskUnit:GetGroup(), "Assigned Task " .. TaskUnit:GetPlayerName() .. " - " .. self:GetName() .. " " .. TaskName ):SetTime( self.TaskControlMenuTime )
+    local TaskGroup = TaskUnit:GetGroup()
+    local TaskPlayerCount = TaskGroup:GetPlayerCount()
+    
+    if TaskPlayerCount <= 1 then
+      self.TaskControlMenu = MENU_GROUP:New( TaskUnit:GetGroup(), "Task " .. self:GetName() .. " control" ):SetTime( self.TaskControlMenuTime )
+    else
+      self.TaskControlMenu = MENU_GROUP:New( TaskUnit:GetGroup(), "Task " .. self:GetName() .. " control for " .. TaskUnit:GetPlayerName() ):SetTime( self.TaskControlMenuTime )
+    end
     
     return self.TaskControlMenu
   end
