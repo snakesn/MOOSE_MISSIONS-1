@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-12T18:05:52.0000000Z-516ffcbaf38e668ec21898f013c59ca521b0414f ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-13T07:57:19.0000000Z-d842232a4e0bff761773cf705c326b5f6e332029 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -33769,7 +33769,7 @@ function SCORING:OnEventBirth( Event )
   if Event.IniUnit then
     if Event.IniObjectCategory == 1 then
       local PlayerName = Event.IniUnit:GetPlayerName()
-      if PlayerName ~= "" then
+      if PlayerName then
         self:_AddPlayerFromUnit( Event.IniUnit )
         self:SetScoringMenu( Event.IniGroup )
       end
@@ -65474,7 +65474,8 @@ function TASK:New( Mission, SetGroupAssign, TaskName, TaskType, TaskBriefing )
   
   local Fsm = self:GetUnitProcess()
   Fsm:SetStartState( "Planned" )
-  Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "SelectAction", Rejected = "Reject" }  )
+  Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "Assigned", Rejected = "Reject" }  )
+  Fsm:AddTransition( "Assigned", "Assigned", "*" )
   
   --- Goal Handler OnBefore for TASK
   -- @function [parent=#TASK] OnBeforeGoal
@@ -68650,9 +68651,6 @@ do -- TASK_A2G
     
     local Fsm = self:GetUnitProcess()
     
-
-    Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "RouteToRendezVous", Rejected = "Reject" }  )
-    
     Fsm:AddTransition( "Assigned", "RouteToRendezVous", "RoutingToRendezVous" )
     Fsm:AddProcess   ( "RoutingToRendezVous", "RouteToRendezVousPoint", ACT_ROUTE_POINT:New(), { Arrived = "ArriveAtRendezVous" } )
     Fsm:AddProcess   ( "RoutingToRendezVous", "RouteToRendezVousZone", ACT_ROUTE_ZONE:New(), { Arrived = "ArriveAtRendezVous" } )
@@ -68673,6 +68671,18 @@ do -- TASK_A2G
     Fsm:AddTransition( "Rejected", "Reject", "Aborted" )
     Fsm:AddTransition( "Failed", "Fail", "Failed" )
     
+
+
+    --- Test 
+    -- @param #FSM_PROCESS self
+    -- @param Wrapper.Unit#UNIT TaskUnit
+    -- @param Tasking.Task_A2G#TASK_A2G Task
+    function Fsm:onafterAssigned( TaskUnit, Task )
+      self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
+      -- Determine the first Unit from the self.RendezVousSetUnit
+      
+      self:RouteToRendezVous()
+    end
     
     --- Test 
     -- @param #FSM_PROCESS self
@@ -69887,8 +69897,6 @@ do -- TASK_A2A
     local Fsm = self:GetUnitProcess()
     
 
-    Fsm:AddProcess   ( "Planned", "Accept", ACT_ASSIGN_ACCEPT:New( self.TaskBriefing ), { Assigned = "RouteToRendezVous", Rejected = "Reject" }  )
-    
     Fsm:AddTransition( "Assigned", "RouteToRendezVous", "RoutingToRendezVous" )
     Fsm:AddProcess   ( "RoutingToRendezVous", "RouteToRendezVousPoint", ACT_ROUTE_POINT:New(), { Arrived = "ArriveAtRendezVous" } )
     Fsm:AddProcess   ( "RoutingToRendezVous", "RouteToRendezVousZone", ACT_ROUTE_ZONE:New(), { Arrived = "ArriveAtRendezVous" } )
@@ -69909,6 +69917,15 @@ do -- TASK_A2A
     Fsm:AddTransition( "Rejected", "Reject", "Aborted" )
     Fsm:AddTransition( "Failed", "Fail", "Failed" )
     
+
+    ---- @param #FSM_PROCESS self
+    -- @param Wrapper.Unit#UNIT TaskUnit
+    -- @param #TASK_CARGO Task
+    function Fsm:OnLeaveAssigned( TaskUnit, Task )
+      self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
+      
+      self:SelectAction()
+    end
     
     --- Test 
     -- @param #FSM_PROCESS self
@@ -70734,6 +70751,17 @@ do -- TASK_CARGO
     Fsm:AddTransition( "Deployed", "Success", "Success" )
     Fsm:AddTransition( "Rejected", "Reject", "Aborted" )
     Fsm:AddTransition( "Failed", "Fail", "Failed" )
+
+
+    ---- @param #FSM_PROCESS self
+    -- @param Wrapper.Unit#UNIT TaskUnit
+    -- @param #TASK_CARGO Task
+    function Fsm:OnAfterAssigned( TaskUnit, Task )
+      self:F( { TaskUnit = TaskUnit, Task = Task and Task:GetClassNameAndID() } )
+      
+      self:SelectAction()
+    end
+    
     
 
     --- 
@@ -71470,7 +71498,7 @@ do -- TASK_CARGO_TRANSPORT
 
   --- The TASK_CARGO_TRANSPORT class
   -- @type TASK_CARGO_TRANSPORT
-  -- @extends Tasking.Task_Cargo#TASK_CARGO
+  -- @extends Tasking.Task_CARGO#TASK_CARGO
   TASK_CARGO_TRANSPORT = {
     ClassName = "TASK_CARGO_TRANSPORT",
   }
@@ -72198,6 +72226,7 @@ do -- TASK_CARGO_DISPATCHER
   function TASK_CARGO_DISPATCHER:AddTransportTask( TaskName, SetCargo, Briefing )
 
     self.TransportCount = self.TransportCount + 1
+    
     local TaskName = string.format( ( TaskName or "Transport" ) .. ".%03d", self.TransportCount )
     
     self.Transport[TaskName] = {} 
@@ -72205,7 +72234,7 @@ do -- TASK_CARGO_DISPATCHER
     self.Transport[TaskName].Briefing = Briefing
     self.Transport[TaskName].Task = nil
     
-    return self
+    return TaskName
   end
 
 
