@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-04-23T04:53:03.0000000Z-f0a15ff9d37f5044029cfddc0c1767bc05c8c5be ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-02T20:19:31.0000000Z-b0fb1e4e9c531ec346a37fa6db3722092739c923 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -25969,8 +25969,9 @@ do -- Route methods
   -- @param #CONTROLLABLE self
   -- @param Core.Point#COORDINATE ToCoordinate A Coordinate to drive to.
   -- @param #number Speed (optional) Speed in km/h. The default speed is 999 km/h.
+  -- @param #string EndPointFormation The formation to achieve at the end point.
   -- @return Task
-  function CONTROLLABLE:TaskGroundOnRoad( ToCoordinate, Speed )
+  function CONTROLLABLE:TaskGroundOnRoad( ToCoordinate, Speed, EndPointFormation )
   
     -- Current coordinate.
     local FromCoordinate = self:GetCoordinate()
@@ -25993,7 +25994,7 @@ do -- Route methods
     -- Add the final coordinate because the final coordinate in path is last point on road.
     local dist=ToCoordinate:Get2DDistance(path[#path])
     if dist>10 then
-      table.insert( Route, ToCoordinate:WaypointGround( Speed, "Vee" ) )
+      table.insert( Route, ToCoordinate:WaypointGround( Speed, EndPointFormation ) )
     end
     
     return Route 
@@ -63690,7 +63691,7 @@ function AI_CARGO_APC:onbeforeLoad( APC, From, Event, To )
       local APCUnit = APCUnit -- Wrapper.Unit#UNIT
       for _, Cargo in pairs( self.CargoSet:GetSet() ) do
         local Cargo = Cargo -- Cargo.Cargo#CARGO
-        self:F( { IsUnLoaded = Cargo:IsUnLoaded() } )
+        self:F( { IsUnLoaded = Cargo:IsUnLoaded(), Cargo:GetName(), APC:GetName() } )
         if Cargo:IsUnLoaded() then
           if Cargo:IsInLoadRadius( APCUnit:GetCoordinate() ) then
             self:F( { "In radius", APCUnit:GetName() } )
@@ -63715,12 +63716,12 @@ function AI_CARGO_APC:onbeforeLoad( APC, From, Event, To )
 end
 
 --- @param #AI_CARGO_APC self
--- @param Wrapper.Group#GROUP Carrier
-function AI_CARGO_APC:onafterBoard( Carrier, From, Event, To, Cargo )
-  self:F( { Carrier, From, Event, To, Cargo } )
+-- @param Wrapper.Group#GROUP APC
+function AI_CARGO_APC:onafterBoard( APC, From, Event, To, Cargo )
+  self:F( { APC, From, Event, To, Cargo } )
 
-  if Carrier and Carrier:IsAlive() then
-    self:F({ IsLoaded = Cargo:IsLoaded() } )
+  if APC and APC:IsAlive() then
+    self:F({ IsLoaded = Cargo:IsLoaded(), Cargo:GetName(), APC:GetName() } )
     if not Cargo:IsLoaded() then
       self:__Board( 10, Cargo )
     else
@@ -63740,7 +63741,7 @@ function AI_CARGO_APC:onbeforeLoaded( APC, From, Event, To )
   if APC and APC:IsAlive() then
     for APCUnit, Cargo in pairs( self.APC_Cargo ) do
       local Cargo = Cargo -- Cargo.Cargo#CARGO
-      self:F( { IsLoaded = Cargo:IsLoaded(), IsDestroyed = Cargo:IsDestroyed() } )
+      self:F( { IsLoaded = Cargo:IsLoaded(), IsDestroyed = Cargo:IsDestroyed(), Cargo:GetName(), APC:GetName() } )
       if not Cargo:IsLoaded() and not Cargo:IsDestroyed() then
         Loaded = false
       end
@@ -63800,8 +63801,9 @@ function AI_CARGO_APC:onbeforeUnloaded( APC, From, Event, To, Cargo )
   --Cargo:Regroup()
 
   if APC and APC:IsAlive() then
-    for _, CargoCheck in pairs( self.CargoSet:GetSet() ) do
-      local CargoCheck = CargoCheck -- Cargo.Cargo#CARGO
+    for _, APCUnit in pairs( APC:GetUnits() ) do
+      local APCUnit = APCUnit -- Wrapper.Unit#UNIT
+      local CargoCheck = self.APC_Cargo[APCUnit]
       self:F( { CargoCheck:GetName(), IsUnLoaded = CargoCheck:IsUnLoaded() } )
       if CargoCheck:IsUnLoaded() == false then
         AllUnloaded = false
@@ -63875,14 +63877,15 @@ end
 -- @param To
 -- @param Core.Point#COORDINATE Coordinate
 -- @param #number Speed
-function AI_CARGO_APC:onafterPickup( APC, From, Event, To, Coordinate, Speed )
+-- @param #string EndPointFormation The formation at the end point of the action.
+function AI_CARGO_APC:onafterPickup( APC, From, Event, To, Coordinate, Speed, EndPointFormation )
 
   if APC and APC:IsAlive() then
 
     if Coordinate then
       self.RoutePickup = true
       
-      local Waypoints = APC:TaskGroundOnRoad( Coordinate, Speed )
+      local Waypoints = APC:TaskGroundOnRoad( Coordinate, Speed, EndPointFormation )
   
       local TaskFunction = APC:TaskFunction( "AI_CARGO_APC._Pickup", self )
       
@@ -63906,13 +63909,14 @@ end
 -- @param To
 -- @param Core.Point#COORDINATE Coordinate
 -- @param #number Speed
-function AI_CARGO_APC:onafterDeploy( APC, From, Event, To, Coordinate, Speed )
+-- @param #string EndPointFormation The formation at the end point of the action.
+function AI_CARGO_APC:onafterDeploy( APC, From, Event, To, Coordinate, Speed, EndPointFormation )
 
   if APC and APC:IsAlive() then
 
     self.RouteDeploy = true
      
-    local Waypoints = APC:TaskGroundOnRoad( Coordinate, Speed )
+    local Waypoints = APC:TaskGroundOnRoad( Coordinate, Speed, EndPointFormation )
 
     local TaskFunction = APC:TaskFunction( "AI_CARGO_APC._Deploy", self )
     
@@ -64260,19 +64264,41 @@ end
 
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
-function AI_CARGO_HELICOPTER:onafterLoad( Helicopter, From, Event, To, Coordinate )
+function AI_CARGO_HELICOPTER:onbeforeLoad( Helicopter, From, Event, To, Coordinate )
+
+  local Boarding = false
 
   if Helicopter and Helicopter:IsAlive() then
   
-    for _, Cargo in pairs( self.CargoSet:GetSet() ) do
-      if Cargo:IsInLoadRadius( Coordinate ) then
-        self:__Board( 5 )
-        Cargo:Board( Helicopter:GetUnit(1), 25 )
-        self.Cargo = Cargo
-        break
+    self.BoardingCount = 0
+  
+    if Helicopter and Helicopter:IsAlive() then
+      self.Helicopter_Cargo = {}
+      for _, HelicopterUnit in pairs( Helicopter:GetUnits() ) do
+        local HelicopterUnit = HelicopterUnit -- Wrapper.Unit#UNIT
+        for _, Cargo in pairs( self.CargoSet:GetSet() ) do
+          local Cargo = Cargo -- Cargo.Cargo#CARGO
+          self:F( { IsUnLoaded = Cargo:IsUnLoaded() } )
+          if Cargo:IsUnLoaded() then
+            if Cargo:IsInLoadRadius( HelicopterUnit:GetCoordinate() ) then
+              self:F( { "In radius", HelicopterUnit:GetName() } )
+              --Cargo:Ungroup()
+              Cargo:Board( HelicopterUnit, 25 )
+              self:__Board( 1, Cargo )
+              Boarding = true
+              
+              -- So now this APCUnit has Cargo that is being loaded.
+              -- This will be used further in the logic to follow and to check cargo status.
+              self.Helicopter_Cargo[HelicopterUnit] = Cargo
+              break
+            end
+          end
+        end
       end
     end
   end
+
+  return Boarding
   
 end
 
@@ -64293,11 +64319,23 @@ end
 
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
-function AI_CARGO_HELICOPTER:onafterLoaded( Helicopter, From, Event, To )
+function AI_CARGO_HELICOPTER:onbeforeLoaded( Helicopter, From, Event, To )
+  
+  local Loaded = true
 
   if Helicopter and Helicopter:IsAlive() then
+    for HelicopterUnit, Cargo in pairs( self.APC_Cargo ) do
+      local Cargo = Cargo -- Cargo.Cargo#CARGO
+      self:F( { IsLoaded = Cargo:IsLoaded(), IsDestroyed = Cargo:IsDestroyed() } )
+      if not Cargo:IsLoaded() and not Cargo:IsDestroyed() then
+        Loaded = false
+      end
+    end
+    
   end
   
+  return Loaded
+
 end
 
 
@@ -64306,9 +64344,15 @@ end
 function AI_CARGO_HELICOPTER:onafterUnload( Helicopter, From, Event, To )
 
   if Helicopter and Helicopter:IsAlive() then
-    self.Cargo:UnBoard()
-    self:__Unboard( 10 ) 
+    for _, HelicopterUnit in pairs( Helicopter:GetUnits() ) do
+      local HelicopterUnit = HelicopterUnit -- Wrapper.Unit#UNIT
+      for _, Cargo in pairs( HelicopterUnit:GetCargo() ) do
+        Cargo:UnBoard()
+        self:__Unboard( 10, Cargo )
+      end 
+    end
   end
+
   
 end
 
@@ -64328,11 +64372,30 @@ end
 
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
-function AI_CARGO_HELICOPTER:onafterUnloaded( Helicopter, From, Event, To )
+function AI_CARGO_HELICOPTER:onbeforeUnloaded( Helicopter, From, Event, To )
+
+  local AllUnloaded = true
+
+  --Cargo:Regroup()
 
   if Helicopter and Helicopter:IsAlive() then
-    self.Helicopter = Helicopter
+    for _, CargoCheck in pairs( self.CargoSet:GetSet() ) do
+      local CargoCheck = CargoCheck -- Cargo.Cargo#CARGO
+      self:F( { CargoCheck:GetName(), IsUnLoaded = CargoCheck:IsUnLoaded() } )
+      if CargoCheck:IsUnLoaded() == false then
+        AllUnloaded = false
+        break
+      end
+    end
+    
+    if AllUnloaded == true then
+      self.Helicopter = Helicopter
+      self.Helicopter_Cargo = {}
+    end
   end
+  
+  self:F( { AllUnloaded = AllUnloaded } )
+  return AllUnloaded
   
 end
 
