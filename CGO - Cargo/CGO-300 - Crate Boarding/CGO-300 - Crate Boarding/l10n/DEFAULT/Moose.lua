@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-10T15:58:26.0000000Z-ad9ce945cfdd6ec6685324c01a5ddb92417937ae ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-10T18:04:31.0000000Z-c58fe4a017068606142040bba7ee484aa9e29385 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -69741,6 +69741,16 @@ function AI_CARGO_HELICOPTER:New( Helicopter, CargoSet )
   return self
 end
 
+function AI_CARGO_HELICOPTER:IsTransporting()
+
+  return self.Transporting == true
+end
+
+function AI_CARGO_HELICOPTER:IsRelocating()
+
+  return self.Relocating == true
+end
+
 
 --- Set the Carrier.
 -- @param #AI_CARGO_HELICOPTER self
@@ -69797,31 +69807,6 @@ function AI_CARGO_HELICOPTER:SetCarrier( Helicopter )
 end
 
 
---- Find a free Carrier within a range.
--- @param #AI_CARGO_HELICOPTER self
--- @param Core.Point#COORDINATE Coordinate
--- @param #number Radius
--- @return Wrapper.Group#GROUP NewCarrier
-function AI_CARGO_HELICOPTER:FindCarrier( Coordinate, Radius )
-
-  local CoordinateZone = ZONE_RADIUS:New( "Zone" , Coordinate:GetVec2(), Radius )
-  CoordinateZone:Scan( { Object.Category.UNIT } )
-  for _, DCSUnit in pairs( CoordinateZone:GetScannedUnits() ) do
-    local NearUnit = UNIT:Find( DCSUnit )
-    self:F({NearUnit=NearUnit})
-    if not NearUnit:GetState( NearUnit, "AI_CARGO_HELICOPTER" ) then
-      local Attributes = NearUnit:GetDesc()
-      self:F({Attributes=Attributes})
-      if NearUnit:HasAttribute( "Trucks" ) then
-        return NearUnit:GetGroup()
-      end
-    end
-  end
-  
-  return nil
-
-end
-
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
 -- @param From
@@ -69836,11 +69821,14 @@ function AI_CARGO_HELICOPTER:onafterLanded( Helicopter, From, Event, To )
     if self.RoutePickup == true then
       self:Load( Helicopter:GetPointVec2() )
       self.RoutePickup = false
+      self.Relocating = true
     end
     
     if self.RouteDeploy == true then
-      self:Unload()
+      self:Unload( true )
       self.RouteDeploy = false
+      self.Transporting = false
+      self.Relocating = false
     end
      
   end
@@ -69858,7 +69846,9 @@ end
 -- @param #number Speed
 function AI_CARGO_HELICOPTER:onafterPickup( Helicopter, From, Event, To, Coordinate, Speed )
 
-  if Helicopter and Helicopter:IsAlive() then
+  if Helicopter and Helicopter:IsAlive() ~= nil then
+
+    Helicopter:Activate()
 
     self.RoutePickup = true
      
@@ -69898,7 +69888,9 @@ function AI_CARGO_HELICOPTER:onafterPickup( Helicopter, From, Event, To, Coordin
     Route[#Route].task = Helicopter:TaskCombo( Tasks )
 
     -- Now route the helicopter
-    Helicopter:Route( Route, 0.5 )
+    Helicopter:Route( Route, 1 )
+
+    self.Transporting = true
   end
   
 end
@@ -69913,7 +69905,7 @@ end
 -- @param #number Speed
 function AI_CARGO_HELICOPTER:onafterDeploy( Helicopter, From, Event, To, Coordinate, Speed )
 
-  if Helicopter and Helicopter:IsAlive() then
+  if Helicopter and Helicopter:IsAlive() ~= nil then
 
     self.RouteDeploy = true
      
@@ -69953,7 +69945,7 @@ function AI_CARGO_HELICOPTER:onafterDeploy( Helicopter, From, Event, To, Coordin
     Route[#Route].task = Helicopter:TaskCombo( Tasks )
 
     -- Now route the helicopter
-    Helicopter:Route( Route, 0.5 )
+    Helicopter:Route( Route, 1 )
   end
   
 end
@@ -70001,14 +69993,15 @@ end
 
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
-function AI_CARGO_HELICOPTER:onafterBoard( Helicopter, From, Event, To )
+function AI_CARGO_HELICOPTER:onafterBoard( Helicopter, From, Event, To, Cargo )
+  self:F( { APC, From, Event, To, Cargo } )
 
   if Helicopter and Helicopter:IsAlive() then
-    self:F({ IsLoaded = self.Cargo:IsLoaded() } )
-    if not self.Cargo:IsLoaded() then
-      self:__Board( 10 )
+    self:F({ IsLoaded = Cargo:IsLoaded() } )
+    if not Cargo:IsLoaded() then
+      self:__Board( 10, Cargo )
     else
-      self:__Loaded( 1 )
+      self:__Loaded( 1, Cargo )
     end
   end
   
@@ -70016,12 +70009,13 @@ end
 
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
-function AI_CARGO_HELICOPTER:onbeforeLoaded( Helicopter, From, Event, To )
+function AI_CARGO_HELICOPTER:onbeforeLoaded( Helicopter, From, Event, To, Cargo )
+  self:F( { APC, From, Event, To } )
   
   local Loaded = true
 
   if Helicopter and Helicopter:IsAlive() then
-    for HelicopterUnit, Cargo in pairs( self.APC_Cargo ) do
+    for HelicopterUnit, Cargo in pairs( self.Helicopter_Cargo ) do
       local Cargo = Cargo -- Cargo.Cargo#CARGO
       self:F( { IsLoaded = Cargo:IsLoaded(), IsDestroyed = Cargo:IsDestroyed() } )
       if not Cargo:IsLoaded() and not Cargo:IsDestroyed() then
@@ -70038,14 +70032,14 @@ end
 
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
-function AI_CARGO_HELICOPTER:onafterUnload( Helicopter, From, Event, To )
+function AI_CARGO_HELICOPTER:onafterUnload( Helicopter, From, Event, To, Deployed )
 
   if Helicopter and Helicopter:IsAlive() then
     for _, HelicopterUnit in pairs( Helicopter:GetUnits() ) do
       local HelicopterUnit = HelicopterUnit -- Wrapper.Unit#UNIT
       for _, Cargo in pairs( HelicopterUnit:GetCargo() ) do
         Cargo:UnBoard()
-        self:__Unboard( 10, Cargo )
+        self:__Unboard( 10, Cargo, Deployed )
       end 
     end
   end
@@ -70055,13 +70049,13 @@ end
 
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
-function AI_CARGO_HELICOPTER:onafterUnboard( Helicopter, From, Event, To )
+function AI_CARGO_HELICOPTER:onafterUnboard( Helicopter, From, Event, To, Cargo, Deployed )
 
   if Helicopter and Helicopter:IsAlive() then
-    if not self.Cargo:IsUnLoaded() then
-      self:__Unboard( 10 ) 
+    if not Cargo:IsUnLoaded() then
+      self:__Unboard( 10, Cargo, Deployed ) 
     else
-      self:__Unloaded( 1 )
+      self:__Unloaded( 1, Cargo, Deployed )
     end
   end
   
@@ -70069,25 +70063,34 @@ end
 
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
-function AI_CARGO_HELICOPTER:onbeforeUnloaded( Helicopter, From, Event, To )
+function AI_CARGO_HELICOPTER:onbeforeUnloaded( Helicopter, From, Event, To, Cargo, Deployed )
+  self:F( { APC, From, Event, To, Cargo:GetName(), Deployed = Deployed } )
 
   local AllUnloaded = true
 
   --Cargo:Regroup()
 
   if Helicopter and Helicopter:IsAlive() then
-    for _, CargoCheck in pairs( self.CargoSet:GetSet() ) do
-      local CargoCheck = CargoCheck -- Cargo.Cargo#CARGO
-      self:F( { CargoCheck:GetName(), IsUnLoaded = CargoCheck:IsUnLoaded() } )
-      if CargoCheck:IsUnLoaded() == false then
-        AllUnloaded = false
-        break
+    for _, HelicopterUnit in pairs( Helicopter:GetUnits() ) do
+      local CargoCheck = self.Helicopter_Cargo[HelicopterUnit] -- Cargo.Cargo#CARGO
+      if CargoCheck then
+        self:F( { CargoCheck:GetName(), IsUnLoaded = CargoCheck:IsUnLoaded() } )
+        if CargoCheck:IsUnLoaded() == false then
+          AllUnloaded = false
+          break
+        end
       end
     end
     
     if AllUnloaded == true then
+      if Deployed == true then
+        for HelicopterUnit, Cargo in pairs( self.Helicopter_Cargo ) do
+          local Cargo = Cargo -- Cargo.Cargo#CARGO
+          Cargo:SetDeployed( true )
+        end
+        self.Helicopter_Cargo = {}
+      end
       self.Helicopter = Helicopter
-      self.Helicopter_Cargo = {}
     end
   end
   
@@ -70611,7 +70614,7 @@ function AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones )
   self.SetCargo = SetCargo -- Core.Set#SET_CARGO
   self.SetDeployZones = SetDeployZones -- Core.Set#SET_ZONE
 
-  self:SetStartState( "APC" ) 
+  self:SetStartState( "Dispatch" ) 
   
   self:AddTransition( "*", "Monitor", "*" )
 
@@ -70623,12 +70626,9 @@ function AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones )
   self:AddTransition( "*", "Unloading", "*" )
   self:AddTransition( "*", "Unloaded", "*" )
   
-  self.MonitorTimeInterval = 120
-  self.CombatRadius = 500
+  self.MonitorTimeInterval = 30
   self.DeployRadiusInner = 200
   self.DeployRadiusOuter = 500
-  
-  self:Monitor( 1 )
   
   return self
 end
@@ -70640,21 +70640,22 @@ end
 -- @return #AI_CARGO_DISPATCHER
 function AI_CARGO_DISPATCHER:onafterMonitor()
 
-  for APCGroupName, APC in pairs( self.SetAPC:GetSet() ) do
-    local APC = APC -- Wrapper.Group#GROUP
-    local AICargoAPC = self.AICargoAPC[APC]
+  for APCGroupName, Carrier in pairs( self.SetAPC:GetSet() ) do
+    local Carrier = Carrier -- Wrapper.Group#GROUP
+    local AICargoAPC = self.AICargoAPC[Carrier]
     if not AICargoAPC then
+    
       -- ok, so this APC does not have yet an AI_CARGO_APC object...
       -- let's create one and also declare the Loaded and UnLoaded handlers.
-      self.AICargoAPC[APC] = AI_CARGO_APC:New( APC, self.SetCargo, self.CombatRadius )
-      AICargoAPC = self.AICargoAPC[APC]
+      self.AICargoAPC[Carrier] = self:AICargo( Carrier, self.SetCargo, self.CombatRadius )
+      AICargoAPC = self.AICargoAPC[Carrier]
       
       function AICargoAPC.OnAfterPickup( AICargoAPC, APC, From, Event, To, Cargo )
         self:Pickup( APC, Cargo )
       end
       
       function AICargoAPC.OnAfterLoad( AICargoAPC, APC )
-        self:Load( APC )
+        self:Loading( APC )
       end
 
       function AICargoAPC.OnAfterLoaded( AICargoAPC, APC, From, Event, To, Cargo )
@@ -70666,7 +70667,7 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
       end      
 
       function AICargoAPC.OnAfterUnload( AICargoAPC, APC )
-        self:Unload( APC )
+        self:Unloading( APC )
       end      
 
       function AICargoAPC.OnAfterUnloaded( AICargoAPC, APC )
@@ -70686,14 +70687,14 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
       for CargoName, Cargo in pairs( self.SetCargo:GetSet() ) do
         if Cargo:IsUnLoaded() and not Cargo:IsDeployed() then
           if not self.PickupCargo[Cargo] then
-            self.PickupCargo[Cargo] = APC
+            self.PickupCargo[Cargo] = Carrier
             PickupCargo = Cargo
             break
           end
         end
       end
       if PickupCargo then
-        AICargoAPC:Pickup( PickupCargo:GetCoordinate(), 70 )
+        AICargoAPC:Pickup( PickupCargo:GetCoordinate():GetRandomCoordinateInRadius( 25, 50 ), 70 )
         break
       end
     end
@@ -70724,7 +70725,7 @@ function AI_CARGO_DISPATCHER:OnAfterLoaded( From, Event, To, APC, Cargo )
   local RandomZone = self.SetDeployZones:GetRandomZone()
   self:I( { RandomZone = RandomZone } )
   
-  self.AICargoAPC[APC]:Deploy( RandomZone:GetCoordinate(), 70 )
+  self.AICargoAPC[APC]:Deploy( RandomZone:GetCoordinate():GetRandomCoordinateInRadius(25,100), 70 )
   self.PickupCargo[Cargo] = nil
 
   return self
@@ -70783,10 +70784,18 @@ function AI_CARGO_DISPATCHER_APC:New( SetAPC, SetCargo, SetDeployZones )
 
   local self = BASE:Inherit( self, AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones ) ) -- #AI_CARGO_DISPATCHER_APC
 
+  self.CombatRadius = 500
+
+  self:Monitor( 1 )
+
   return self
 end
 
 
+function AI_CARGO_DISPATCHER_APC:AICargo( APC, SetCargo )
+
+  return AI_CARGO_APC:New( APC, SetCargo, self.CombatRadius )
+end
 --- **AI** -- (R2.4) - Models the intelligent transportation of infantry and other cargo using Helicopters.
 --
 -- ===
@@ -70821,7 +70830,7 @@ AI_CARGO_DISPATCHER_HELICOPTER = {
 
 --- Creates a new AI_CARGO_DISPATCHER_HELICOPTER object.
 -- @param #AI_CARGO_DISPATCHER_HELICOPTER self
--- @param Core.Set#SET_GROUP SetAPC
+-- @param Core.Set#SET_GROUP SetHelicopter
 -- @param Core.Set#SET_CARGO SetCargo
 -- @param Core.Set#SET_ZONE SetDeployZone
 -- @return #AI_CARGO_DISPATCHER_HELICOPTER
@@ -70837,9 +70846,15 @@ function AI_CARGO_DISPATCHER_HELICOPTER:New( SetHelicopter, SetCargo, SetDeployZ
 
   local self = BASE:Inherit( self, AI_CARGO_DISPATCHER:New( SetHelicopter, SetCargo, SetDeployZones ) ) -- #AI_CARGO_DISPATCHER_HELICOPTER
 
+  self:Monitor( 1 )
+
   return self
 end
 
+function AI_CARGO_DISPATCHER_HELICOPTER:AICargo( Helicopter, SetCargo )
+
+  return AI_CARGO_HELICOPTER:New( Helicopter, SetCargo )
+end
 
 --- **AI** -- (R2.4) - Models the intelligent transportation of infantry and other cargo using Planes.
 --
