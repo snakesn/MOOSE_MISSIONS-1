@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-08T04:45:29.0000000Z-91128e6aa68daab00c642dccd843a90ed7a33d22 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-10T15:58:26.0000000Z-ad9ce945cfdd6ec6685324c01a5ddb92417937ae ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -9704,6 +9704,7 @@ DATABASE = {
   ZONENAMES = {},
   HITS = {},
   DESTROYS = {},
+  ZONES = {},
 }
 
 local _DATABASECoalition =
@@ -10721,7 +10722,6 @@ function DATABASE:_RegisterTemplates()
       
       local CoalitionSide = coalition.side[string.upper(CoalitionName)]
 
-      ----------------------------------------------
       -- build nav points DB
       self.Navpoints[CoalitionName] = {}
       if coa_data.nav_points then --navpoints
@@ -10736,8 +10736,9 @@ function DATABASE:_RegisterTemplates()
             self.Navpoints[CoalitionName][nav_ind]['point']['y'] = 0
             self.Navpoints[CoalitionName][nav_ind]['point']['z'] = nav_data.y
           end
+        end
       end
-      end
+
       -------------------------------------------------
       if coa_data.country then --there is a country table
         for cntry_id, cntry_data in pairs(coa_data.country) do
@@ -10793,6 +10794,8 @@ function DATABASE:_RegisterTemplates()
   for ZoneID, ZoneData in pairs( env.mission.triggers.zones ) do
     local ZoneName = ZoneData.name
     self.ZONENAMES[ZoneName] = ZoneName
+    self.ZONES[ZoneName] = ZONE:New( ZoneName )
+    self:I( "Added ZONE " .. ZoneName )
   end
 
   return self
@@ -15234,6 +15237,71 @@ function SET_CARGO:FindNearestCargoFromPointVec2( PointVec2 ) --R2.1
   return NearestCargo
 end
 
+function SET_CARGO:FirstCargoWithState( State )
+  
+  local FirstCargo = nil
+  
+  for CargoName, Cargo in pairs( self.Set ) do
+    if Cargo:Is( State ) then
+      FirstCargo = Cargo
+      break
+    end
+  end
+  
+  return FirstCargo
+end
+
+function SET_CARGO:FirstCargoWithStateAndNotDeployed( State )
+  
+  local FirstCargo = nil
+  
+  for CargoName, Cargo in pairs( self.Set ) do
+    if Cargo:Is( State ) and not Cargo:IsDeployed() then
+      FirstCargo = Cargo
+      break
+    end
+  end
+  
+  return FirstCargo
+end
+
+
+--- Iterate the SET_CARGO while identifying the first @{Cargo#CARGO} that is UnLoaded.
+-- @param #SET_CARGO self
+-- @return Cargo.Cargo#CARGO The first @{Cargo#CARGO}.
+function SET_CARGO:FirstCargoUnLoaded()
+  local FirstCargo = self:FirstCargoWithState( "UnLoaded" )
+  return FirstCargo
+end
+
+
+--- Iterate the SET_CARGO while identifying the first @{Cargo#CARGO} that is UnLoaded and not Deployed.
+-- @param #SET_CARGO self
+-- @return Cargo.Cargo#CARGO The first @{Cargo#CARGO}.
+function SET_CARGO:FirstCargoUnLoadedAndNotDeployed()
+  local FirstCargo = self:FirstCargoWithStateAndNotDeployed( "UnLoaded" )
+  return FirstCargo
+end
+
+
+--- Iterate the SET_CARGO while identifying the first @{Cargo#CARGO} that is Loaded.
+-- @param #SET_CARGO self
+-- @return Cargo.Cargo#CARGO The first @{Cargo#CARGO}.
+function SET_CARGO:FirstCargoLoaded()
+  local FirstCargo = self:FirstCargoWithState( "Loaded" )
+  return FirstCargo
+end
+
+
+--- Iterate the SET_CARGO while identifying the first @{Cargo#CARGO} that is Deployed.
+-- @param #SET_CARGO self
+-- @return Cargo.Cargo#CARGO The first @{Cargo#CARGO}.
+function SET_CARGO:FirstCargoDeployed()
+  local FirstCargo = self:FirstCargoWithState( "Deployed" )
+  return FirstCargo
+end
+
+
 
 
 --- (R2.1) 
@@ -15327,6 +15395,236 @@ function SET_CARGO:OnEventDeleteCargo( EventData ) --R2.1
       end
     end
   end
+end
+
+
+
+--- @type SET_ZONE
+-- @extends Core.Set#SET_BASE
+
+--- # SET_ZONE class, extends @{Set#SET_BASE}
+-- 
+-- Mission designers can use the @{Set#SET_ZONE} class to build sets of zones of various types.
+-- 
+-- ## SET_ZONE constructor
+-- 
+-- Create a new SET_ZONE object with the @{#SET_ZONE.New} method:
+-- 
+--    * @{#SET_ZONE.New}: Creates a new SET_ZONE object.
+--   
+-- ## Add or Remove ZONEs from SET_ZONE 
+-- 
+-- ZONEs can be added and removed using the @{Set#SET_ZONE.AddZonesByName} and @{Set#SET_ZONE.RemoveZonesByName} respectively. 
+-- These methods take a single ZONE name or an array of ZONE names to be added or removed from SET_ZONE.
+-- 
+-- ## 5.3) SET_ZONE filter criteria 
+-- 
+-- You can set filter criteria to build the collection of zones in SET_ZONE.
+-- Filter criteria are defined by:
+-- 
+--    * @{#SET_ZONE.FilterPrefixes}: Builds the SET_ZONE with the zones having a certain text pattern of prefix.
+--   
+-- Once the filter criteria have been set for the SET_ZONE, you can start filtering using:
+-- 
+--   * @{#SET_ZONE.FilterStart}: Starts the filtering of the zones within the SET_ZONE.
+-- 
+-- ## 5.4) SET_ZONE iterators
+-- 
+-- Once the filters have been defined and the SET_ZONE has been built, you can iterate the SET_ZONE with the available iterator methods.
+-- The iterator methods will walk the SET_ZONE set, and call for each airbase within the set a function that you provide.
+-- The following iterator methods are currently available within the SET_ZONE:
+-- 
+--   * @{#SET_ZONE.ForEachZone}: Calls a function for each zone it finds within the SET_ZONE.
+-- 
+-- ===
+-- @field #SET_ZONE SET_ZONE
+SET_ZONE = {
+  ClassName = "SET_ZONE",
+  Zones = {},
+  Filter = {
+    Prefixes = nil,
+  },
+  FilterMeta = {
+  },
+}
+
+
+--- Creates a new SET_ZONE object, building a set of zones.
+-- @param #SET_ZONE self
+-- @return #SET_ZONE self
+-- @usage
+-- -- Define a new SET_ZONE Object. The DatabaseSet will contain a reference to all Zones.
+-- DatabaseSet = SET_ZONE:New()
+function SET_ZONE:New()
+  -- Inherits from BASE
+  local self = BASE:Inherit( self, SET_BASE:New( _DATABASE.ZONES ) )
+
+  return self
+end
+
+--- Add ZONEs to SET_ZONE.
+-- @param Core.Set#SET_ZONE self
+-- @param #string AddZoneNames A single name or an array of ZONE_BASE names.
+-- @return self
+function SET_ZONE:AddZonesByName( AddZoneNames )
+
+  local AddZoneNamesArray = ( type( AddZoneNames ) == "table" ) and AddZoneNames or { AddZoneNames }
+  
+  for AddAirbaseID, AddZoneName in pairs( AddZoneNamesArray ) do
+    self:Add( AddZoneName, ZONE:FindByName( AddZoneName ) )
+  end
+    
+  return self
+end
+
+--- Remove ZONEs from SET_ZONE.
+-- @param Core.Set#SET_ZONE self
+-- @param Core.Zone#ZONE_BASE RemoveZoneNames A single name or an array of ZONE_BASE names.
+-- @return self
+function SET_ZONE:RemoveZonesByName( RemoveZoneNames )
+
+  local RemoveZoneNamesArray = ( type( RemoveZoneNames ) == "table" ) and RemoveZoneNames or { RemoveZoneNames }
+  
+  for RemoveZoneID, RemoveZoneName in pairs( RemoveZoneNamesArray ) do
+    self:Remove( RemoveZoneName )
+  end
+    
+  return self
+end
+
+
+--- Finds a Zone based on the Zone Name.
+-- @param #SET_ZONE self
+-- @param #string ZoneName
+-- @return Core.Zone#ZONE_BASE The found Zone.
+function SET_ZONE:FindZone( ZoneName )
+
+  local ZoneFound = self.Set[ZoneName]
+  return ZoneFound
+end
+
+
+--- Get a random zone from the set.
+-- @param #SET_ZONE self
+-- @return Core.Zone#ZONE_BASE The random Zone.
+function SET_ZONE:GetRandomZone()
+
+  local Index = self.Index
+  local ZoneFound = nil
+  
+  while not ZoneFound do
+    local ZoneRandom = math.random( 1, #Index )
+    ZoneFound = self.Set[Index[ZoneRandom]]
+  end
+
+  return ZoneFound
+end
+
+
+
+--- Builds a set of zones of defined zone prefixes.
+-- All the zones starting with the given prefixes will be included within the set.
+-- @param #SET_ZONE self
+-- @param #string Prefixes The prefix of which the zone name starts with.
+-- @return #SET_ZONE self
+function SET_ZONE:FilterPrefixes( Prefixes )
+  if not self.Filter.Prefixes then
+    self.Filter.Prefixes = {}
+  end
+  if type( Prefixes ) ~= "table" then
+    Prefixes = { Prefixes }
+  end
+  for PrefixID, Prefix in pairs( Prefixes ) do
+    self.Filter.Prefixes[Prefix] = Prefix
+  end
+  return self
+end
+
+
+--- Starts the filtering.
+-- @param #SET_ZONE self
+-- @return #SET_ZONE self
+function SET_ZONE:FilterStart()
+
+  if _DATABASE then
+  
+    -- We initialize the first set.
+    for ObjectName, Object in pairs( self.Database ) do
+      if self:IsIncludeObject( Object ) then
+        self:Add( ObjectName, Object )
+      else
+        self:RemoveZonesByName( ObjectName )
+      end
+    end
+  end
+  
+  return self
+end
+
+--- Handles the Database to check on an event (birth) that the Object was added in the Database.
+-- This is required, because sometimes the _DATABASE birth event gets called later than the SET_BASE birth event!
+-- @param #SET_ZONE self
+-- @param Core.Event#EVENTDATA Event
+-- @return #string The name of the AIRBASE
+-- @return #table The AIRBASE
+function SET_ZONE:AddInDatabase( Event )
+  self:F3( { Event } )
+
+  return Event.IniDCSUnitName, self.Database[Event.IniDCSUnitName]
+end
+
+--- Handles the Database to check on any event that Object exists in the Database.
+-- This is required, because sometimes the _DATABASE event gets called later than the SET_BASE event or vise versa!
+-- @param #SET_ZONE self
+-- @param Core.Event#EVENTDATA Event
+-- @return #string The name of the AIRBASE
+-- @return #table The AIRBASE
+function SET_ZONE:FindInDatabase( Event )
+  self:F3( { Event } )
+
+  return Event.IniDCSUnitName, self.Database[Event.IniDCSUnitName]
+end
+
+--- Iterate the SET_ZONE and call an interator function for each ZONE, providing the ZONE and optional parameters.
+-- @param #SET_ZONE self
+-- @param #function IteratorFunction The function that will be called when there is an alive ZONE in the SET_ZONE. The function needs to accept a AIRBASE parameter.
+-- @return #SET_ZONE self
+function SET_ZONE:ForEachZone( IteratorFunction, ... )
+  self:F2( arg )
+  
+  self:ForEach( IteratorFunction, arg, self:GetSet() )
+
+  return self
+end
+
+
+---
+-- @param #SET_ZONE self
+-- @param Core.Zone#ZONE_BASE MZone
+-- @return #SET_ZONE self
+function SET_ZONE:IsIncludeObject( MZone )
+  self:F2( MZone )
+
+  local MZoneInclude = true
+
+  if MZone then
+    local MZoneName = MZone:GetName()
+  
+    if self.Filter.Prefixes then
+      local MZonePrefix = false
+      for ZonePrefixId, ZonePrefix in pairs( self.Filter.Prefixes ) do
+        self:T3( { "Prefix:", string.find( MZoneName, ZonePrefix, 1 ), ZonePrefix } )
+        if string.find( MZoneName, ZonePrefix, 1 ) then
+          MZonePrefix = true
+        end
+      end
+      self:T( { "Evaluated Prefix", MZonePrefix } )
+      MZoneInclude = MZoneInclude and MZonePrefix
+    end
+  end
+   
+  self:T2( MZoneInclude )
+  return MZoneInclude
 end
 
 --- **Core** -- **POINT\_VEC** classes define an **extensive API** to **manage 3D points** in the simulation space.
@@ -15800,8 +16098,8 @@ do -- COORDINATE
   -- @param height (Optional) parameter specifying the height ASL.
   -- @return Temperature in Degrees Celsius.
   function COORDINATE:GetTemperature(height)
+    self:F2(height)
     local y=height or self.y
-    env.info("FF height = "..y)
     local point={x=self.x, y=height or self.y, z=self.z}
     -- get temperature [K] and pressure [Pa] at point
     local T,P=atmosphere.getTemperatureAndPressure(point)
@@ -18457,15 +18755,15 @@ do -- FSM
       end
   
       if execute then
+          self:_call_handler("onafter", EventName, Params, EventName )
+          self:_call_handler("OnAfter", EventName, Params, EventName )
+      
         -- only execute the call if the From state is not equal to the To state! Otherwise this function should never execute!
         --if from ~= to then
           self:_call_handler("onenter", To, Params, EventName )
           self:_call_handler("OnEnter", To, Params, EventName )
         --end
-  
-        self:_call_handler("onafter", EventName, Params, EventName )
-        self:_call_handler("OnAfter", EventName, Params, EventName )
-  
+    
         self:_call_handler("onstate", "change", Params, EventName )
       end
     else
@@ -23444,7 +23742,7 @@ function POSITIONABLE:GetVelocityVec3()
 
   local DCSPositionable = self:GetDCSObject()
   
-  if DCSPositionable then
+  if DCSPositionable and DCSPositionable:isExist() then
     local PositionableVelocityVec3 = DCSPositionable:getVelocity()
     self:T3( PositionableVelocityVec3 )
     return PositionableVelocityVec3
@@ -23486,7 +23784,7 @@ function POSITIONABLE:GetVelocityKMH()
 
   local DCSPositionable = self:GetDCSObject()
   
-  if DCSPositionable then
+  if DCSPositionable and DCSPositionable:isExist() then
     local VelocityVec3 = self:GetVelocityVec3()
     local Velocity = ( VelocityVec3.x ^ 2 + VelocityVec3.y ^ 2 + VelocityVec3.z ^ 2 ) ^ 0.5 -- in meters / sec
     local Velocity = Velocity * 3.6 -- now it is in km/h.
@@ -23505,7 +23803,7 @@ function POSITIONABLE:GetVelocityMPS()
 
   local DCSPositionable = self:GetDCSObject()
   
-  if DCSPositionable then
+  if DCSPositionable and DCSPositionable:isExist() then
     local VelocityVec3 = self:GetVelocityVec3()
     local Velocity = ( VelocityVec3.x ^ 2 + VelocityVec3.y ^ 2 + VelocityVec3.z ^ 2 ) ^ 0.5 -- in meters / sec
     self:T3( Velocity )
@@ -25049,9 +25347,10 @@ end
 -- @param Dcs.DCSTypes#Vec2 Vec2 The point to fire at.
 -- @param Dcs.DCSTypes#Distance Radius The radius of the zone to deploy the fire at.
 -- @param #number AmmoCount (optional) Quantity of ammunition to expand (omit to fire until ammunition is depleted).
+-- @param #number WeaponType (optional) Enum for weapon type ID. This value is only required if you want the group firing to use a specific weapon, for instance using the task on a ship to force it to fire guided missiles at targets within cannon range. See http://wiki.hoggit.us/view/DCS_enum_weapon_flag 
 -- @return Dcs.DCSTasking.Task#Task The DCS task structure.
-function CONTROLLABLE:TaskFireAtPoint( Vec2, Radius, AmmoCount )
-  self:F2( { self.ControllableName, Vec2, Radius, AmmoCount } )
+function CONTROLLABLE:TaskFireAtPoint( Vec2, Radius, AmmoCount, WeaponType )
+  self:F2( { self.ControllableName, Vec2, Radius, AmmoCount, WeaponType } )
 
   -- FireAtPoint = {
   --   id = 'FireAtPoint',
@@ -25076,6 +25375,10 @@ function CONTROLLABLE:TaskFireAtPoint( Vec2, Radius, AmmoCount )
   if AmmoCount then
     DCSTask.params.expendQty = AmmoCount
     DCSTask.params.expendQtyEnabled = true
+  end
+  
+  if WeaponType then
+    DCSTask.params.weaponType=WeaponType
   end
 
   self:T3( { DCSTask } )
@@ -28642,18 +28945,28 @@ end
 
 --- Destroys the UNIT.
 -- @param #UNIT self
+-- @param #boolean GenerateEvent (Optional) true if you want to generate a crash or dead event for the unit.
 -- @return #nil The DCS Unit is not existing or alive.  
-function UNIT:Destroy()
+function UNIT:Destroy( GenerateEvent )
   self:F2( self.ObjectName )
 
   local DCSObject = self:GetDCSObject()
   
   if DCSObject then
+  
     local UnitGroup = self:GetGroup()
     local UnitGroupName = UnitGroup:GetName()
     self:F( { UnitGroupName = UnitGroupName } )
+    
+    if GenerateEvent and GenerateEvent == true then
+      if self:IsAir() then
+        self:CreateEventCrash( timer.getTime(), DCSObject )
+      else
+        self:CreateEventDead( timer.getTime(), DCSObject )
+      end
+    end
+    
     USERFLAG:New( UnitGroupName ):Set( 100 )
-    --BASE:CreateEventCrash( timer.getTime(), DCSObject )
     DCSObject:destroy()
   end
 
@@ -32609,6 +32922,20 @@ do -- CARGO_GROUP
   --
   -- The CARGO\_GROUP class defines a cargo that is represented by a @{Group} object within the simulator.
   -- The cargo can be Loaded, UnLoaded, Boarded, UnBoarded to and from Carriers.
+  -- 
+  -- The above cargo classes are used by the AI\_CARGO\_ classes to allow AI groups to transport cargo:
+  -- 
+  --   * AI Armoured Personnel Carriers to transport cargo and engage in battles, using the @{AI.AI_Cargo_APC#AI_CARGO_APC} class.
+  --   * AI Helicopters to transport cargo, using the @{AI.AI_Cargo_Helicopter#AI_CARGO_HELICOPTER} class.
+  --   * AI Planes to transport cargo, using the @{AI.AI_Cargo_Plane#AI_CARGO_PLANE} class.
+  --   * AI Ships is planned.
+  -- 
+  -- The above cargo classes are also used by the TASK\_CARGO\_ classes to allow human players to transport cargo as part of a tasking:
+  -- 
+  --   * @{Tasking.Task_Cargo_Transport#TASK_CARGO_TRANSPORT} to transport cargo by human players.
+  --   * @{Tasking.Task_Cargo_Transport#TASK_CARGO_CSAR} to transport downed pilots by human players.
+  -- 
+  -- The
   --
   -- @field #CARGO_GROUP CARGO_GROUP
   -- 
@@ -44496,20 +44823,21 @@ end
 -- 
 -- # Demo Missions
 --
--- ### [RAT Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/Release/RAT%20-%20Random%20Air%20Traffic)
--- ### [ALL Demo Missions pack of the last release](https://github.com/FlightControl-Master/MOOSE_MISSIONS/releases)
+-- ### [MOOSE - ALL Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS)
+-- ### [MOOSE - RAT Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS/tree/master/RAT%20-%20Random%20Air%20Traffic)
 -- 
 -- ===
 -- 
 -- # YouTube Channel
 -- 
--- ### [DCS WORLD - MOOSE - RAT - Random Air Traffic](https://www.youtube.com/playlist?list=PL7ZUrU4zZUl0u4Zxywtg-mx_ov4vi68CO)
+-- ### [MOOSE YouTube Channel](https://www.youtube.com/channel/UCjrA9j5LQoWsG4SpS8i79Qg) 
+-- ### [MOOSE - RAT - Random Air Traffic](https://www.youtube.com/playlist?list=PL7ZUrU4zZUl0u4Zxywtg-mx_ov4vi68CO)
 -- 
 -- ===
 -- 
 -- ### Author: **[funkyfranky](https://forums.eagle.ru/member.php?u=115026)**
 -- 
--- ### Contributions: **Sven van de Velde ([FlightControl](https://forums.eagle.ru/member.php?u=89536))**
+-- ### Contributions: [FlightControl](https://forums.eagle.ru/member.php?u=89536)
 -- 
 -- ===
 -- @module Rat
@@ -44570,7 +44898,7 @@ end
 -- @field #boolean continuejourney Aircraft will continue their journey, i.e. get respawned at their destination with a new random destination.
 -- @field #number ngroups Number of groups to be spawned in total.
 -- @field #number alive Number of groups which are alive.
--- @field #boolean f10menu Add an F10 menu for RAT.
+-- @field #boolean f10menu If true, add an F10 radiomenu for RAT. Default is false.
 -- @field #table Menu F10 menu items for this RAT object.
 -- @field #string SubMenuName Submenu name for RAT object.
 -- @field #boolean respawn_at_landing Respawn aircraft the moment they land rather than at engine shutdown.
@@ -44804,7 +45132,7 @@ RAT={
   continuejourney=false,    -- Aircraft will continue their journey, i.e. get respawned at their destination with a new random destination.
   alive=0,                  -- Number of groups which are alive.
   ngroups=nil,              -- Number of groups to be spawned in total. 
-  f10menu=true,             -- Add an F10 menu for RAT.
+  f10menu=false,            -- Add an F10 menu for RAT.
   Menu={},                  -- F10 menu items for this RAT object.
   SubMenuName=nil,          -- Submenu name for RAT object.
   respawn_at_landing=false, -- Respawn aircraft the moment they land rather than at engine shutdown.
@@ -44960,7 +45288,7 @@ RAT.id="RAT | "
 --- RAT version.
 -- @list version
 RAT.version={
-  version = "2.2.1",
+  version = "2.2.2",
   print = true,
 }
 
@@ -45734,7 +46062,7 @@ end
 
 --- Check if aircraft have accidentally been spawned on the runway. If so they will be removed immediatly.
 -- @param #RAT self
--- @param #booblen switch If true, check is performed. If false, this check is omitted.
+-- @param #boolean switch If true, check is performed. If false, this check is omitted.
 function RAT:CheckOnRunway(switch)
   self:F2(switch)
   if switch==nil then
@@ -45745,7 +46073,7 @@ end
 
 --- Check if aircraft have accidentally been spawned on top of each other. If yes, they will be removed immediately.
 -- @param #RAT self
--- @param #booblen switch If true, check is performed. If false, this check is omitted.
+-- @param #boolean switch If true, check is performed. If false, this check is omitted.
 function RAT:CheckOnTop(switch)
   self:F2(switch)
   if switch==nil then
@@ -45756,7 +46084,7 @@ end
 
 --- Put parking spot coordinates in a data base for future use of aircraft.
 -- @param #RAT self
--- @param #booblen switch If true, parking spots are memorized. This is also the default setting.
+-- @param #boolean switch If true, parking spots are memorized. This is also the default setting.
 function RAT:ParkingSpotDB(switch)
   self:F2(switch)
   if switch==nil then
@@ -45816,6 +46144,21 @@ function RAT:Immortal()
   self:F2()
   self.immortal=true
 end
+
+--- Radio menu On. Default is off. 
+-- @param #RAT self
+function RAT:RadioMenuON()
+  self:F2()
+  self.f10menu=true
+end
+
+--- Radio menu Off. This is the default setting. 
+-- @param #RAT self
+function RAT:RadioMenuOFF()
+  self:F2()
+  self.f10menu=false
+end
+
 
 --- Activate uncontrolled aircraft. 
 -- @param #RAT self
@@ -48719,10 +49062,10 @@ end
 function RAT:_CommandImmortal(group, switch)
 
   -- Command structure for setting groups to invisible.  
-  local SetInvisible = {id = 'SetImmortal', params = {value = switch}}
+  local SetImmortal = {id = 'SetImmortal', params = {value = switch}}
   
   -- Execute command.
-  group:SetCommand(SetInvisible)
+  group:SetCommand(SetImmortal)
 end
 
 --- Adds a parking spot at an airport when it has been used by a spawned RAT aircraft to the RAT parking data base.
@@ -50048,12 +50391,13 @@ end
 -- 
 -- # Demo Missions
 --
--- ### [ALL Demo Missions pack of the last release](https://github.com/FlightControl-Master/MOOSE_MISSIONS/releases)
+-- ### [MOOSE - ALL Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS)
 -- 
 -- ===
 -- 
 -- # YouTube Channel
--- 
+--
+-- ### [MOOSE YouTube Channel](https://www.youtube.com/channel/UCjrA9j5LQoWsG4SpS8i79Qg) 
 -- ### [MOOSE - On the Range - Demonstration Video](https://www.youtube.com/watch?v=kIXcxNB9_3M)
 -- 
 -- ===
@@ -50227,6 +50571,9 @@ end
 -- 
 -- The function @{#RANGE.DebugON}() can be used to send messages on screen. It also smokes all defined strafe and bombing targets, the strafe pit approach boxes and the range zone.
 -- 
+-- Note that it can happen that the RANGE radio menu is not shown. Check that the range object is defined as a **global** variable rather than a local one.
+-- The could avoid the lua garbage collection to accidentally/falsely deallocate the RANGE objects. 
+-- 
 -- 
 -- 
 -- @field #RANGE
@@ -50295,7 +50642,7 @@ RANGE.id="RANGE | "
 
 --- Range script version.
 -- @field #number version
-RANGE.version="1.1.0"
+RANGE.version="1.1.1"
 
 --TODO list:
 --TODO: Add custom weapons, which can be specified by the user.
@@ -51553,6 +51900,80 @@ function RANGE:_DisplayRangeInfo(_unitname)
   end
 end
 
+--- Display bombing target locations to player.
+-- @param #RANGE self
+-- @param #string _unitname Name of the player unit.
+function RANGE:_DisplayBombTargets(_unitname)
+  self:F(_unitname)
+
+  -- Get player unit and player name.
+  local _unit, _playername = self:_GetPlayerUnitAndName(_unitname)
+  
+  -- Check if we have a player.
+  if _unit and _playername then
+  
+    -- Player settings.
+    local _settings=_DATABASE:GetPlayerSettings(_playername) or _SETTINGS --Core.Settings#SETTINGS
+    
+    -- Message text.
+    local _text="Bomb Target Locations:"
+  
+    for _,_bombtarget in pairs(self.bombingTargets) do
+      local _target=_bombtarget.target --Wrapper.Positionable#POSITIONABLE
+      if _target and _target:IsAlive() then
+      
+        -- Core.Point#COORDINATE
+        local coord=_target:GetCoordinate() --Core.Point#COORDINATE
+        local mycoord=coord:ToStringA2G(_unit, _settings)
+        _text=_text..string.format("\n- %s: %s",_bombtarget.name, mycoord)
+      end
+    end
+    
+    self:_DisplayMessageToGroup(_unit,_text, nil, true)
+  end
+end
+
+--- Display pit location and heading to player.
+-- @param #RANGE self
+-- @param #string _unitname Name of the player unit.
+function RANGE:_DisplayStrafePits(_unitname)
+  self:F(_unitname)
+
+  -- Get player unit and player name.
+  local _unit, _playername = self:_GetPlayerUnitAndName(_unitname)
+  
+  -- Check if we have a player.
+  if _unit and _playername then
+  
+    -- Player settings.
+    local _settings=_DATABASE:GetPlayerSettings(_playername) or _SETTINGS --Core.Settings#SETTINGS
+    
+    -- Message text.
+    local _text="Strafe Target Locations:"
+  
+    for _,_strafepit in pairs(self.strafeTargets) do
+      local _target=_strafepit --Wrapper.Positionable#POSITIONABLE
+      
+      -- Pit parameters.
+      local coord=_strafepit.coordinate --Core.Point#COORDINATE
+      local heading=_strafepit.heading
+      
+      -- Turn heading around ==> approach heading.
+      if heading>180 then
+        heading=heading-180
+      else
+        heading=heading+180
+      end
+
+      local mycoord=coord:ToStringA2G(_unit, _settings)
+      _text=_text..string.format("\n- %s: %s - heading %03d",_strafepit.name, mycoord, heading)
+    end
+    
+    self:_DisplayMessageToGroup(_unit,_text, nil, true)
+  end
+end
+
+
 --- Report weather conditions at range. Temperature, QFE pressure and wind data.
 -- @param #RANGE self
 -- @param #string _unitname Name of the player unit.
@@ -51808,11 +52229,11 @@ function RANGE:_AddF10Commands(_unitName)
         local _statsPath    = missionCommands.addSubMenuForGroup(_gid, "Statistics",   _rangePath)
         local _markPath     = missionCommands.addSubMenuForGroup(_gid, "Mark Targets", _rangePath)
         local _settingsPath = missionCommands.addSubMenuForGroup(_gid, "My Settings",  _rangePath)
+        local _infoPath     = missionCommands.addSubMenuForGroup(_gid, "Range Info",   _rangePath)
         -- F10/On the Range/<Range Name>/My Settings/
         local _mysmokePath  = missionCommands.addSubMenuForGroup(_gid, "Smoke Color", _settingsPath)
         local _myflarePath  = missionCommands.addSubMenuForGroup(_gid, "Flare Color", _settingsPath)
 
-        --TODO: Convert to MOOSE menu.
         -- F10/On the Range/<Range Name>/Mark Targets/
         missionCommands.addCommandForGroup(_gid, "Mark On Map",         _markPath, self._MarkTargetsOnMap, self, _unitName)
         missionCommands.addCommandForGroup(_gid, "Illuminate Range",    _markPath, self._IlluminateBombTargets, self, _unitName)        
@@ -51840,9 +52261,11 @@ function RANGE:_AddF10Commands(_unitName)
         missionCommands.addCommandForGroup(_gid, "Smoke Delay On/Off",  _settingsPath, self._SmokeBombDelayOnOff, self, _unitName)
         missionCommands.addCommandForGroup(_gid, "Smoke Impact On/Off",  _settingsPath, self._SmokeBombImpactOnOff, self, _unitName)
         missionCommands.addCommandForGroup(_gid, "Flare Hits On/Off",    _settingsPath, self._FlareDirectHitsOnOff, self, _unitName)        
-        -- F10/On the Range/<Range Name>/
-        missionCommands.addCommandForGroup(_gid, "Range Information",   _rangePath, self._DisplayRangeInfo, self, _unitName)
-        missionCommands.addCommandForGroup(_gid, "Weather Report",      _rangePath, self._DisplayRangeWeather, self, _unitName)
+        -- F10/On the Range/<Range Name>/Range Information
+        missionCommands.addCommandForGroup(_gid, "General Info",        _infoPath, self._DisplayRangeInfo, self, _unitName)
+        missionCommands.addCommandForGroup(_gid, "Weather Report",      _infoPath, self._DisplayRangeWeather, self, _unitName)
+        missionCommands.addCommandForGroup(_gid, "Bombing Targets",     _infoPath, self._DisplayBombTargets, self, _unitName)
+        missionCommands.addCommandForGroup(_gid, "Strafe Pits",         _infoPath, self._DisplayStrafePits, self, _unitName)
       end
     else
       self:T(RANGE.id.."Could not find group or group ID in AddF10Menu() function. Unit name: ".._unitName)
@@ -53424,6 +53847,5278 @@ do -- ZONE_CAPTURE_COALITION
     end
   end
   
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- **Functional** - (R2.4) Control artillery units.
+-- 
+-- ===
+-- 
+-- ![Banner Image](..\Presentations\ARTY\ARTY_Main.png)
+-- 
+-- ====
+-- 
+-- The ARTY class can be used to easily assign and manage targets for artillery units.
+-- 
+-- ## Features:
+-- 
+-- * Multiple targets can be assigned. No restriction on number of targets.
+-- * Targets can be given a priority. Engagement of targets is executed a according to their priority.
+-- * Engagements can be scheduled, i.e. will be executed at a certain time of the day.
+-- * Special weapon types can be selected for each attack, e.g. cruise missiles for Naval units.
+-- * Automatic rearming once the artillery is out of ammo.
+-- * New targets can be added during the mission, e.g. when they are detected by recon units.
+-- * Finite state machine implementation. Mission designer can interact when certain events occur.
+-- 
+-- ====
+-- 
+-- # Demo Missions
+--
+-- ### [MOOSE - ALL Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS)
+-- 
+-- ====
+-- 
+-- # YouTube Channel
+-- 
+-- ### [MOOSE YouTube Channel](https://www.youtube.com/channel/UCjrA9j5LQoWsG4SpS8i79Qg)
+-- 
+-- ===
+-- 
+-- ### Author: **[funkyfranky](https://forums.eagle.ru/member.php?u=115026)**
+-- 
+-- ### Contributions: [FlightControl](https://forums.eagle.ru/member.php?u=89536)
+-- 
+-- ====
+-- @module Arty
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- ARTY class
+-- @type ARTY
+-- @field #string ClassName Name of the class.
+-- @field #boolean Debug Write Debug messages to DCS log file and send Debug messages to all players.
+-- @field #table targets All targets assigned.
+-- @field #table moves All moves assigned.
+-- @field #table currentTarget Holds the current target, if there is one assigned.
+-- @field #table currentMove Holds the current commanded move, if there is one assigned.
+-- @field #number Nammo0 Initial amount total ammunition (shells+rockets+missiles) of the whole group.
+-- @field #number Nshells0 Initial amount of shells of the whole group.
+-- @field #number Nrockets0 Initial amount of rockets of the whole group.
+-- @field #number Nmissiles0 Initial amount of missiles of the whole group.
+-- @field #number FullAmmo Full amount of all ammunition taking the number of alive units into account.
+-- @field #number StatusInterval Update interval in seconds between status updates. Default 10 seconds.
+-- @field #number WaitForShotTime Max time in seconds to wait until fist shot event occurs after target is assigned. If time is passed without shot, the target is deleted. Default is 300 seconds.
+-- @field #table DCSdesc DCS descriptors of the ARTY group.
+-- @field #string Type Type of the ARTY group.
+-- @field #string DisplayName Extended type name of the ARTY group.
+-- @field #number IniGroupStrength Inital number of units in the ARTY group.
+-- @field #boolean IsArtillery If true, ARTY group has attribute "Artillery".
+-- @field #number SpeedMax Maximum speed of ARTY group in km/h. This is determined from the DCS descriptor table.
+-- @field #number Speed Default speed in km/h the ARTY group moves at. Maximum speed possible is 80% of maximum speed the group can do.
+-- @field #number RearmingDistance Safe distance in meters between ARTY group and rearming group or place at which rearming is possible. Default 100 m.
+-- @field Wrapper.Group#GROUP RearmingGroup Unit designated to rearm the ARTY group.
+-- @field #number RearmingGroupSpeed Speed in km/h the rearming unit moves at. Default 50 km/h.
+-- @field #boolean RearmingGroupOnRoad If true, rearming group will move to ARTY group or rearming place using mainly roads. Default false. 
+-- @field Core.Point#COORDINATE RearmingGroupCoord Initial coordinates of the rearming unit. After rearming complete, the unit will return to this position.
+-- @field Core.Point#COORDINATE RearmingPlaceCoord Coordinates of the rearming place. If the place is more than 100 m away from the ARTY group, the group will go there.
+-- @field #boolean RearmingArtyOnRoad If true, ARTY group will move to rearming place using mainly roads. Default false.
+-- @field Core.Point#COORDINATE InitialCoord Initial coordinates of the ARTY group.
+-- @field #boolean report Arty group sends messages about their current state or target to its coaliton.
+-- @field #table ammoshells Table holding names of the shell types which are included when counting the ammo. Default is {"weapons.shells"} which include most shells.
+-- @field #table ammorockets Table holding names of the rocket types which are included when counting the ammo. Default is {"weapons.nurs"} which includes most unguided rockets.
+-- @field #table ammomissiles Table holding names of the missile types which are included when counting the ammo. Default is {"weapons.missiles"} which includes some guided missiles.
+-- @field #number Nshots Number of shots fired on current target.
+-- @field #number minrange Minimum firing range in kilometers. Targets closer than this distance are not engaged. Default 0.5 km.
+-- @field #number maxrange Maximum firing range in kilometers. Targets further away than this distance are not engaged. Default 10000 km. 
+-- @extends Core.Fsm#FSM_CONTROLLABLE
+
+---# ARTY class, extends @{Core.Fsm#FSM_CONTROLLABLE}
+--
+-- The ARTY class enables mission designers easily to assign targets for artillery units. Since the implementation is based on a Finite State Model (FSM), the mission designer can
+-- interact with the process at certain events or states.
+-- 
+-- A new ARTY object can be created with the @{#ARTY.New}(*group*) contructor.
+-- The parameter *group* has to be a MOOSE Group object and defines ARTY group.
+-- 
+-- The ARTY FSM process can be started by the @{#ARTY.Start}() command.
+--
+-- ## The ARTY Process
+-- 
+-- ![Process](..\Presentations\ARTY\ARTY_Process.png)
+-- 
+-- ### Blue Branch
+-- After the FMS process is started the ARTY group will be in the state **CombatReady**. Once a target is assigned the **OpenFire** event will be triggered and the group starts
+-- firing. At this point the group in in the state **Firing**.
+-- When the defined number of shots has been fired on the current target the event **CeaseFire** is triggered. The group will stop firing and go back to the state **CombatReady**.
+-- If another target is defined (or multiple engagements of the same target), the cycle starts anew.
+-- 
+-- ### Violet Branch
+-- When the ARTY group runs out of ammunition, the event **Winchester** is triggered and the group enters the state **OutOfAmmo**.
+-- In this state, the group is unable to engage further targets.
+-- 
+-- ### Red Branch
+-- With the @{#ARTY.SetRearmingGroup}(*group*) command, a special group can be defined to rearm the ARTY group. If this unit has been assigned and the group has entered the state
+-- **OutOfAmmo** the event **Rearm** is triggered followed by a transition to the state **Rearming**.
+-- If the rearming group is less than 100 meters away from the ARTY group, the rearming process starts. If the rearming group is more than 100 meters away from the ARTY unit, the
+-- rearming group is routed to a point 20 to 100 m from the ARTY group.
+-- 
+-- Once the rearming is complete, the **Rearmed** event is triggered and the group enters the state **CombatReady**. At this point targeted can be engaged again.
+-- 
+-- ### Green Branch
+-- The ARTY group can be ordered to change its position via the @{#ARTY.AssignMoveCoord}() function as described below. When the group receives the command to move
+-- the event **Move** is triggered and the state changes to **Moving**. When the unit arrives to its destination the event **Arrived** is triggered and the group
+-- becomes **CombatReady** again.
+-- 
+-- Note, that the ARTY group will not open fire while it is in state **Moving**. This property differentiates artillery from tanks. 
+-- 
+-- ### Yellow Branch
+-- When a new target is assigned via the @{#ARTY.AssignTargetCoord}() function (see below), the **NewTarget** event is triggered.
+-- 
+-- ## Assigning Targets
+-- Assigning targets is a central point of the ARTY class. Multiple targets can be assigned simultanioulsly and are put into a queue.
+-- Of course, targets can be added at any time during the mission. For example, once they are detected by a reconnaissance unit.  
+-- 
+-- In order to add a target, the function @{#ARTY.AssignTargetCoord}(*coord*, *prio*, *radius*, *nshells*, *maxengage*, *time*, *weapontype*, *name*) has to be used.
+-- Only the first parameter *coord* is mandatory while all remaining parameters are all optional.
+-- 
+-- ### Parameters:
+-- 
+-- * *coord*: Coordinates of the target, given as @{Point#COORDINATE} object.
+-- * *prio*: Priority of the target. This a number between 1 (high prio) and 100 (low prio). Targets with higher priority are engaged before targets with lower priority.
+-- * *radius*: Radius in meters which defines the area the ARTY group will attempt to be hitting. Default is 100 meters.
+-- * *nshells*: Number of shots (shells, rockets, missiles) fired by the group at each engagement of a target. Default is 5.
+-- * *maxengage*: Number of times a target is engaged.
+-- * *time*: Time of day the engagement is schedule in the format "hh:mm:ss" for hh=hours, mm=minutes, ss=seconds.
+-- For example "10:15:35". In the case the attack will be executed at a quarter past ten in the morning at the day the mission started.
+-- If the engagement should start on the following day the format can be specified as "10:15:35+1", where the +1 denots the following day.
+-- This is useful for longer running missions or if the mission starts at 23:00 hours and the attack should be scheduled at 01:00 hours on the following day.
+-- Of course, later days are also possible by appending "+2", "+3", etc.
+-- **Note** that the time has to be given as a string. So the enclosing quotation marks "" are important.
+-- * *weapontype*: Specified the weapon type that should be used for this attack if the ARTY group has multiple weapons to engage the target.
+-- For example, this is useful for naval units which carry a bigger arsenal (cannons and missiles). Default is Auto, i.e. DCS logic selects the appropriate weapon type.
+-- *name*: A special name can be defined for this target. Default name are the coordinates of the target in LL DMS format. If a name is already given for another target
+-- or the same target should be attacked two or more times with different parameters a suffix "#01", "#02", "#03" is automatically appended to the specified name.
+-- 
+-- ## Target Queue
+-- In case multiple targets have been defined, it is important to understand how the target queue works.
+-- 
+-- Here, the essential parameters are the priority *prio*, the number of engagements *maxengage* and the scheduled *time* as described above.
+-- 
+-- For example, we have assigned two targets one with *prio*=10 and the other with *prio*=50 and both targets should be engaged three times (*maxengage*=3).
+-- Let's first consider the case that none of the targets is scheduled to be executed at a certain time (*time*=nil).
+-- The ARTY group will first engage the target with higher priority (*prio*=10). After the engagement is finished, the target with lower priority is attacked.
+-- This is because the target with lower prio has been attacked one time less. After the attack on the lower priority task is finished and both targets 
+-- have been engaged equally often, the target with the higher priority is engaged again. This coninues until a target has engaged three times.
+-- Once the maximum number of engagements is reached, the target is deleted from the queue.
+-- 
+-- In other words, the queue is first sorted with respect to the number of engagements and targets with the same number of engagements are sorted with
+-- respect to their priority.
+-- 
+-- ### Timed Engagements
+-- 
+-- As mentioned above, targets can be engaged at a specific time of the day via the *time* parameter.
+-- 
+-- If the *time* parameter is specified for a target, the first engagement of that target will happen at that time of the day and not before.
+-- This also applies when multiple engagements are requested via the *maxengage* parameter. The first attack will not happen before the specifed time.
+-- When that timed attack is finished, the *time* parameter is deleted and the remaining engagements are carried out in the same manner as for untimed targets (described above).
+-- 
+-- Of course, it can happen that a scheduled task should be executed at a time, when another target is already under attack.
+-- If the priority of the target is higher than the priority of the current target, then the current attack is cancelled and the engagement of the target with the higher
+-- priority is started.
+-- 
+-- By contrast, if the current target has a higher priority than the target scheduled at that time, the current attack is finished before the scheduled attack is started.
+-- 
+-- ## Determining the Amount of Ammo
+-- 
+-- In order to determin when a unit is out of ammo and possible initiate the rearming process it is necessary to know which types of weapons have to be counted.
+-- For most artillery unit types, this is simple because they only have one type of weapon and hence ammunition.
+-- 
+-- However, there are more complex scenarios. For example, naval units carry a big arsenal of different ammunition types ranging from various cannon shell types
+-- over surface-to-air missiles to cruise missiles. Obviously, not all of these ammo types can be employed for artillery tasks.
+-- 
+-- Unfortunately, there is no easy way to count only those ammo types useable as artillery. Therefore, to keep the implementation general the user
+-- can specify the names of the ammo types by the following functions:
+-- 
+-- * @{#ARTY.SetShellTypes}(*tableofnames*): Defines the ammo types for unguided cannons. Default is *tableofnames*={"weapons.shells"}, i.e. **all** types of shells are counted.
+-- * @{#ARTY.SetRocketTypes}(*tableofnames*): Defines the ammo types of unguided rockets. Default is *tableofnames*={"weapons.nurs"}, i.e. **all** types of rockets are counted.
+-- * @{#ARTY.SetMissileTypes}(*tableofnames*): Defines the ammo types of guided missiles. Default is *tableofnames*={"weapons.missiles"}, i.e. **all** types of missiles are counted.
+-- 
+-- **Note** that the default parameters "weapons.shells", "weapons.nurs", "weapons.missiles" **should in priciple** capture all the corresponding ammo types.
+-- However, the logic searches for the string "weapon.missies" in the ammo type. Especially for missiles, this string is often not contained in the ammo type descriptor.
+-- 
+-- One way to determin which types of ammo the unit carries, one can use the debug mode of the arty class via @{#ARTY.SetDebugON}().
+-- In debug mode, the all ammo types of the group are printed to the monitor as message and can be found in the DCS.log file.   
+-- 
+-- ## Empoying Selected Weapons
+-- 
+-- If an ARTY group carries multiple weapons, which can be used for artillery task, a certain weapon type can be selected to attack the target.
+-- This is done via the *weapontype* parameter of the @{#ARTY.AssignTargetCoord}(..., *weapontype*, ...) function.
+-- 
+-- The enumerator @{#ARTY.WeaponType} has been defined to select a certain weapon type. Supported values are:
+-- 
+-- * @{#ARTY.WeaponType}.Auto: Automatic weapon selection by the DCS logic. This is the default setting.
+-- * @{#ARTY.WeaponType}.Cannon: Only cannons are used during the attack. Corresponding ammo type are shells and can be defined by @{#ARTY.SetShellTypes}.
+-- * @{#ARTY.WeaponType}.Rockets: Only unguided are used during the attack. Corresponding ammo type are rockets/nurs and can be defined by @{#ARTY.SetRocketTypes}.
+-- * @{#ARTY.WeaponType}.UnguidedAny: Any unguided weapon (cannons or rockes) will be used.
+-- * @{#ARTY.WeaponType}.GuidedMissile: Any guided missiles are used during the attack. Corresponding ammo type are missiles and can be defined by @{#ARTY.SetMissileTypes}.
+-- * @{#ARTY.WeaponType}.CruiseMissile: Only cruise missiles are used during the attack. Corresponding ammo type are missiles and can be defined by @{#ARTY.SetMissileTypes}.
+-- 
+-- ## Assigning Moves
+-- The ARTY group can be commanded to move. This is done by the @{#ARTY.AssignMoveCoord}(*coord*,*time*,*speed*,*onroad*,*cancel*,*name*) function.
+-- With this multiple timed moves of the group can be scheduled easily. By default, these moves will only be executed if the group is state **CombatReady**.
+-- 
+-- ### Parameters
+-- 
+-- * *coord*: Coordinates where the group should move to given as @{Point#COORDINATE} object.
+-- * *time*: The time when the move should be executed. This has to be given as a string in the format "hh:mm:ss" (hh=hours, mm=minutes, ss=seconds).
+-- * *speed*: Speed of the group in km/h.
+-- * *onroad*: If this parameter is set to true, the group uses mainly roads to get to the commanded coordinates.
+-- * *cancel*: If set to true, any current engagement of targets is cancelled at the time the move should be executed.
+-- * *name*: Can be used to set a user defined name of the move. By default the name is created from the LL DMS coordinates.
+-- 
+-- ## Automatic Rearming
+-- 
+-- If an ARTY group runs out of ammunition, it can be rearmed automatically.
+-- 
+-- ### Rearming Group
+-- The first way to activate the automatic rearming is to define a rearming group with the function @{#ARTY.SetRearmingGroup}(*group*). For the blue side, this
+-- could be a M181 transport truck and for the red side an Ural-375 truck.
+-- 
+-- Once the ARTY group is out of ammo and the **Rearm** event is triggered, the defined rearming truck will drive to the ARTY group.
+-- So the rearming truck does not have to be placed nearby the artillery group. When the rearming is complete, the rearming truck will drive back to its original position.
+-- 
+-- ### Rearming Place
+-- The second alternative is to define a rearming place, e.g. a FRAP, airport or any other warehouse. This is done with the function @{#ARTY.SetRearmingPlace}(*coord*).
+-- The parameter *coord* specifies the coordinate of the rearming place which should not be further away then 100 meters from the warehouse.
+-- 
+-- When the **Rearm** event is triggered, the ARTY group will move to the rearming place. Of course, the group must be mobil. So for a mortar this rearming procedure would not work.
+-- 
+-- After the rearming is complete, the ARTY group will move back to its original position and resume normal operations.
+-- 
+-- ### Rearming Group **and** Rearming Place
+-- If both a rearming group *and* a rearming place are specified like described above, both the ARTY group and the rearming truck will move to the rearming place and meet there.
+-- 
+-- After the rearming is complete, both groups will move back to their original positions.
+-- 
+-- ## Fine Tuning
+-- 
+-- The mission designer has a few options to tailor the ARTY object according to his needs.
+-- 
+-- * @{#ARTY.RemoveAllTargets}() removes all targets from the target queue.
+-- * @{#ARTY.RemoveTarget}(*name*) deletes the target with *name* from the target queue.
+-- * @{#ARTY.SetMaxFiringRange}(*range*) defines the maximum firing range. Targets further away than this distance are not engaged.
+-- * @{#ARTY.SetMinFiringRange}(*range*) defines the minimum firing range. Targets closer than this distance are not engaged.
+-- * @{#ARTY.SetRearmingGroup}(*group*) sets the group resposible for rearming of the ARTY group once it is out of ammo.
+-- * @{#ARTY.SetReportON}() and @{#ARTY.SetReportOFF}() can be used to enable/disable status reports of the ARTY group send to all coalition members.
+-- * @{#ARTY.SetWaitForShotTime}(*waittime*) sets the time after which a target is deleted from the queue if no shooting event occured after the target engagement started.
+-- Default is 300 seconds. Note that this can for example happen, when the assigned target is out of range.
+-- *  @{#ARTY.SetDebugON}() and @{#ARTY.SetDebugOFF}() can be used to enable/disable the debug mode.
+-- 
+-- ## Examples
+-- 
+-- ### Assigning Multiple Targets
+-- This basic example illustrates how to assign multiple targets and defining a rearming group.
+--     -- Creat a new ARTY object from a Paladin group.
+--     paladin=ARTY:New(GROUP:FindByName("Blue Paladin"))
+--     
+--     -- Define a rearming group. This is a Transport M818 truck.
+--     paladin:SetRearmingGroup(GROUP:FindByName("Blue Ammo Truck"))
+--     
+--     -- Set the max firing range. A Paladin unit has a range of 20 km.
+--     paladin:SetMaxFiringRange(20)
+--     
+--     -- Low priorty (90) target, will be engage last. Target is engaged two times. At each engagement five shots are fired.
+--     paladin:AssignTargetCoord(GROUP:FindByName("Red Targets 3"):GetCoordinate(),  90, nil,  5, 2)
+--     -- Medium priorty (nil=50) target, will be engage second. Target is engaged two times. At each engagement ten shots are fired.
+--     paladin:AssignTargetCoord(GROUP:FindByName("Red Targets 1"):GetCoordinate(), nil, nil, 10, 2)
+--     -- High priorty (10) target, will be engage first. Target is engaged three times. At each engagement twenty shots are fired.
+--     paladin:AssignTargetCoord(GROUP:FindByName("Red Targets 2"):GetCoordinate(),  10, nil, 20, 3)
+--     
+--     -- Start ARTY process.
+--     paladin:Start()
+-- **Note**
+-- 
+-- * If a parameter should be set to its default value, it has to be set to *nil* if other non-default parameters follow. Parameters at the end can simply be skiped.
+-- * In this example, the target coordinates are taken from groups placed in the mission edit using the COORDINATE:GetCoordinate() function.   
+-- 
+-- ### Scheduled Engagements
+--     -- Mission starts at 8 o'clock.
+--     -- Assign two scheduled targets.
+--     
+--     -- Create ARTY object from Paladin group.
+--     paladin=ARTY:New(GROUP:FindByName("Blue Paladin"))
+--     
+--     -- Assign target coordinates. Priority=50 (medium), radius=100 m, use 5 shells per engagement, engage 1 time at two past 8 o'clock.
+--     paladin:AssignTargetCoord(GROUP:FindByName("Red Targets 1"):GetCoordinate(), 50, 100,  5, 1, "08:02:00", ARTY.WeaponType.Auto, "Target 1")
+--     
+--     -- Assign target coordinates. Priority=10 (high), radius=300 m, use 10 shells per engagement, engage 1 time at seven past 8 o'clock.
+--     paladin:AssignTargetCoord(GROUP:FindByName("Red Targets 2"):GetCoordinate(), 10, 300, 10, 1, "08:07:00", ARTY.WeaponType.Auto, "Target 2")
+--     
+--     -- Start ARTY process.
+--     paladin:Start()
+-- 
+-- ### Specific Weapons
+-- This example demonstrates how to use specific weapons during an engagement.
+--     -- Define the Normandy as ARTY object.
+--     normandy=ARTY:New(GROUP:FindByName("Normandy"))
+--     
+--     -- Add target: prio=50, radius=300 m, number of missiles=20, number of engagements=1, start time=08:05 hours, only use cruise missiles for this attack.
+--     normandy:AssignTargetCoord(GROUP:FindByName("Red Targets 1"):GetCoordinate(),  20, 300,  50, 1, "08:01:00", ARTY.WeaponType.CruiseMissile)
+--     
+--     -- Add target: prio=50, radius=300 m, number of shells=100, number of engagements=1, start time=08:15 hours, only use cannons during this attack.
+--     normandy:AssignTargetCoord(GROUP:FindByName("Red Targets 1"):GetCoordinate(),  50, 300, 100, 1, "08:15:00", ARTY.WeaponType.Cannon)
+--     
+--     -- Define shells that are counted to check whether the ship is out of ammo.
+--     -- Note that this is necessary because the Normandy has a lot of other shell type weapons which cannot be used to engage ground targets in an artillery style manner.
+--     normandy:SetShellTypes({"MK45_127"})
+--        
+--     -- Define missile types that are counted.
+--     normandy:SetMissileTypes({"BGM"})
+--        
+--     -- Start ARTY process.
+--     normandy:Start()
+--
+-- 
+-- @field #ARTY
+ARTY={
+  ClassName="ARTY",
+  Debug=false,
+  targets={},
+  moves={},
+  currentTarget=nil,
+  currentMove=nil,
+  Nammo0=0,
+  Nshells0=0,
+  Nrockets0=0,
+  Nmissiles0=0,
+  FullAmmo=0,
+  StatusInterval=10,
+  WaitForShotTime=300,
+  DCSdesc=nil,
+  Type=nil,
+  DisplayName=nil,
+  IniGroupStrength=0,
+  IsArtillery=nil,
+  RearmingDistance=100,
+  RearmingGroup=nil,
+  RearmingGroupSpeed=50,
+  RearmingGroupOnRoad=false,
+  RearmingGroupCoord=nil,
+  RearmingPlaceCoord=nil,
+  RearmingArtyOnRoad=false,
+  InitialCoord=nil,
+  report=true,
+  --ammoshells={"weapons.shells"},
+  ammoshells={},
+  --ammorockets={"weapons.nurs"},
+  ammorockets={},
+  --ammomissiles={"weapons.missiles"},
+  ammomissiles={},
+  Nshots=0,
+  minrange=500,
+  maxrange=1000000,
+}
+
+--- Weapong type ID. http://wiki.hoggit.us/view/DCS_enum_weapon_flag
+-- @list WeaponType
+ARTY.WeaponType={
+  Auto=1073741822,
+  Cannon=805306368,
+  Rockets=30720,
+  UnguidedAny=805339120,
+  GuidedMissile=268402688,
+  CruiseMissile=2097152,
+  AntiShipMissile=65536, 
+}
+
+--- Some ID to identify who we are in output of the DCS.log file.
+-- @field #string id
+ARTY.id="ARTY | "
+
+--- Arty script version.
+-- @field #string version
+ARTY.version="0.9.0"
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- TODO list:
+-- DONE: Delete targets from queue user function.
+-- DONE: Delete entire target queue user function.
+-- DONE: Add weapon types. Done but needs improvements.
+-- DONE: Add user defined rearm weapon types.
+-- DONE: Check if target is in range. Maybe this requires a data base with the ranges of all arty units. <solved by user function>
+-- DONE: Make ARTY move to rearming position.
+-- DONE: Check that right rearming vehicle is specified. Blue M818, Red Ural-375. Are there more? <user needs to know!>
+-- DONE: Check if ARTY group is still alive.
+-- DONE: Handle dead events.
+-- DONE: Abort firing task if no shooting event occured with 5(?) minutes. Something went wrong then. Min/max range for example.
+-- DONE: Improve assigned time for engagement. Next day?
+-- DONE: Improve documentation.
+-- TODO: Add pseudo user transitions. OnAfter...
+-- DONE: Make reaming unit a group.
+-- DONE: Write documenation.
+-- DONE: Add command move to make arty group move.
+-- DONE: remove schedulers for status event.
+-- TODO: Improve handling of special weapons. When winchester if using selected weapons?
+-- TODO: Handle rearming for ships.
+-- TODO: Make coordinate after rearming general, i.e. also work after the group has moved to anonther location.
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Creates a new ARTY object.
+-- @param #ARTY self
+-- @param Wrapper.Group#GROUP group The GROUP object for which artillery tasks should be assigned.
+-- @return #ARTY ARTY object.
+-- @return nil If group does not exist or is not a ground or naval group.
+function ARTY:New(group)
+  BASE:F2(group)
+
+  -- Inherits from FSM_CONTROLLABLE
+  local self=BASE:Inherit(self, FSM_CONTROLLABLE:New()) -- #ARTY
+  
+  -- Check that group is present.
+  if group then
+    self:T(ARTY.id..string.format("ARTY script version %s. Added group %s.", ARTY.version, group:GetName()))
+  else
+    self:E(ARTY.id.."ERROR: Requested ARTY group does not exist! (Has to be a MOOSE group.)")
+    return nil
+  end
+  
+  -- Check that we actually have a GROUND group.
+  if group:IsGround()==false and group:IsShip()==false then
+    self:E(ARTY.id..string.format("ERROR: ARTY group %s has to be a GROUND or SHIP group!", group:GetName()))
+    return nil
+  end  
+  
+  -- Set the controllable for the FSM.
+  self:SetControllable(group)
+  
+  -- Set the initial coordinates of the ARTY group.
+  self.InitialCoord=group:GetCoordinate()
+  
+  -- Get DCS descriptors of group.
+  local DCSgroup=Group.getByName(group:GetName())
+  local DCSunit=DCSgroup:getUnit(1)
+  self.DCSdesc=DCSunit:getDesc()
+  
+  -- DCS descriptors.
+  self:T3(ARTY.id.."DCS descriptors for group "..group:GetName())
+  for id,desc in pairs(self.DCSdesc) do
+    self:T3({id=id, desc=desc})
+  end
+  
+  -- Maximum speed in km/h.
+  self.SpeedMax=self.DCSdesc.speedMax*3.6
+  
+  -- Set speed to 0.7 of maximum.
+  self.Speed=self.SpeedMax * 0.7
+  
+  -- Displayed name (similar to type name below)
+  self.DisplayName=self.DCSdesc.displayName
+  
+  -- Is this infantry or not.
+  self.IsArtillery=DCSunit:hasAttribute("Artillery")
+  
+  -- Type of group.
+  self.Type=group:GetTypeName()
+  
+  -- Initial group strength.
+  self.IniGroupStrength=#group:GetUnits()
+
+  ---------------  
+  -- Transitions:
+  ---------------
+
+  -- Entry.
+  self:AddTransition("*",           "Start",       "CombatReady")
+  
+  -- Blue branch.
+  self:AddTransition("CombatReady", "OpenFire",    "Firing")
+  self:AddTransition("Firing",      "CeaseFire",   "CombatReady")
+  
+  -- Violett branch.
+  self:AddTransition("CombatReady", "Winchester",  "OutOfAmmo")
+
+  -- Red branch.  
+  self:AddTransition({"CombatReady", "OutOfAmmo"},  "Rearm",       "Rearming")
+  self:AddTransition("Rearming",                    "Rearmed",     "Rearmed")
+    
+  -- Green branch.
+  self:AddTransition("*",           "Move",        "Moving")
+  self:AddTransition("Moving",      "Arrived",     "Arrived")
+  
+  -- Yellow branch.
+  self:AddTransition("*",           "NewTarget",   "*")
+  
+  -- Not in diagram.
+  self:AddTransition("*",           "CombatReady", "CombatReady")
+  self:AddTransition("*",           "Status",      "*")
+  self:AddTransition("*",           "NewMove",     "*")
+  self:AddTransition("*",           "Dead",        "*")
+  
+  -- Unknown transitons. To be checked if adding these causes problems.
+  self:AddTransition("Rearming",    "Arrived",     "Rearming")
+  self:AddTransition("Rearming",    "Move",        "Rearming")
+  
+  return self
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- User Functions
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Assign target coordinates to the ARTY group. Only the first parameter, i.e. the coordinate of the target is mandatory. The remaining parameters are optional and can be used to fine tune the engagement.
+-- @param #ARTY self
+-- @param Wrapper.Point#COORDINATE coord Coordinates of the target.
+-- @param #number prio (Optional) Priority of target. Number between 1 (high) and 100 (low). Default 50.
+-- @param #number radius (Optional) Radius. Default is 100 m.
+-- @param #number nshells (Optional) How many shells (or rockets) are fired on target per engagement. Default 5.
+-- @param #number maxengage (Optional) How many times a target is engaged. Default 1.
+-- @param #string time (Optional) Day time at which the target should be engaged. Passed as a string in format "08:13:45". Current task will be canceled.
+-- @param #number weapontype (Optional) Type of weapon to be used to attack this target. Default ARTY.WeaponType.Auto, i.e. the DCS logic automatically determins the appropriate weapon.
+-- @param #string name (Optional) Name of the target. Default is LL DMS coordinate of the target. If the name was already given, the numbering "#01", "#02",... is appended automatically.
+-- @return #string Name of the target. Can be used for further reference, e.g. deleting the target from the list.
+-- @usage paladin=ARTY:New(GROUP:FindByName("Blue Paladin"))
+-- paladin:AssignTargetCoord(GROUP:FindByName("Red Targets 1"):GetCoordinate(), 10, 300, 10, 1, "08:02:00", ARTY.WeaponType.Auto, "Target 1")
+-- paladin:Start()
+function ARTY:AssignTargetCoord(coord, prio, radius, nshells, maxengage, time, weapontype, name)
+  self:F({coord=coord, prio=prio, radius=radius, nshells=nshells, maxengage=maxengage, time=time, weapontype=weapontype, name=name})
+  
+  -- Set default values.
+  nshells=nshells or 5
+  radius=radius or 100
+  maxengage=maxengage or 1
+  prio=prio or 50
+  prio=math.max(  1, prio)
+  prio=math.min(100, prio)
+  weapontype=weapontype or ARTY.WeaponType.Auto
+  
+  -- Name of the target.
+  local _name=name or coord:ToStringLLDMS() 
+    
+  -- Check if the name has already been used for another target. If so, the function returns a new unique name.
+  _name=self:_CheckName(self.targets, _name)
+  
+  -- Time in seconds.
+  local _time=self:_ClockToSeconds(time)
+  
+  -- Prepare target array.
+  local _target={name=_name, coord=coord, radius=radius, nshells=nshells, engaged=0, underfire=false, prio=prio, maxengage=maxengage, time=_time, weapontype=weapontype}
+  
+  -- Add to table.
+  table.insert(self.targets, _target)
+  
+  -- Trigger new target event.
+  self:NewTarget(_target)
+  
+  return _name
+end
+
+--- Assign coordinate to where the ARTY group should move.
+-- @param #ARTY self
+-- @param Wrapper.Point#COORDINATE coord Coordinates of the target.
+-- @param #string time (Optional) Day time at which the group should start moving. Passed as a string in format "08:13:45".
+-- @param #number speed (Optinal) Speed in km/h the group should move at. Default 50 km/h.
+-- @param #boolean onroad (Optional) If true, group will mainly use roads. Default off, i.e. go directly towards the specified coordinate.
+-- @param #boolean cancel (Optional) If true, cancel any running attack when move should begin. Default is false.
+-- @param #string name (Optional) Name of the coordinate. Default is LL DMS string of the coordinate. If the name was already given, the numbering "#01", "#02",... is appended automatically.
+-- @return #string Name of the move. Can be used for further reference, e.g. deleting the move from the list.
+function ARTY:AssignMoveCoord(coord, time, speed, onroad, cancel, name)
+  self:F({coord=coord, time=time, speed=speed, onroad=onroad, cancel=cancel, name=name})
+  
+    -- Name of the target.
+  local _name=name or coord:ToStringLLDMS() 
+    
+  -- Check if the name has already been used for another target. If so, the function returns a new unique name.
+  _name=self:_CheckName(self.moves, _name)
+  
+  -- Default is current time if no time was specified.
+  time=time or self:_SecondsToClock(timer.getAbsTime())
+  
+  -- Default speed is 50 km/h.
+  speed=speed or 50
+  
+  -- Default is off road.
+  if onroad==nil then
+    onroad=false
+  end
+
+  -- Default is not to cancel a running attack.
+  if cancel==nil then
+    cancel=false
+  end
+  
+  -- Time in seconds.
+  local _time=self:_ClockToSeconds(time)
+  
+  -- Prepare move array.
+  local _move={name=_name, coord=coord, time=_time, speed=speed, onroad=onroad, cancel=cancel}
+  
+  -- Add to table.
+  table.insert(self.moves, _move)
+  
+end
+
+--- Set minimum firing range. Targets closer than this distance are not engaged.
+-- @param #ARTY self
+-- @param #number range Min range in kilometers. Default is 0.5 km.
+function ARTY:SetMinFiringRange(range)
+  self:F({range=range})
+  self.minrange=range*1000 or 500
+end
+
+--- Set maximum firing range. Targets further away than this distance are not engaged.
+-- @param #ARTY self
+-- @param #number range Max range in kilometers. Default is 1000 km.
+function ARTY:SetMaxFiringRange(range)
+  self:F({range=range})
+  self.maxrange=range*1000 or 1000*1000
+end
+
+--- Set time interval between status updates. During the status check, new events are triggered.
+-- @param #ARTY self
+-- @param #number interval Time interval in seconds. Default 10 seconds.
+function ARTY:SetStatusInterval(interval)
+  self:F({interval=interval})
+  self.StatusInterval=interval or 10
+end
+
+--- Set time how it is waited a unit the first shot event happens. If no shot is fired after this time, the task to fire is aborted and the target removed.
+-- @param #ARTY self
+-- @param #number waittime Time in seconds. Default 300 seconds.
+function ARTY:SetWaitForShotTime(waittime)
+  self:F({waittime=waittime})
+  self.WaitForShotTime=waittime or 300
+end
+
+--- Define the safe distance between ARTY group and rearming unit or rearming place at which rearming process is possible.
+-- @param #ARTY self
+-- @param #number distance Safe distance in meters. Default is 100 m. 
+function ARTY:SetRearmingDistance(distance)
+  self:F({distance=distance})
+  self.RearmingDistance=distance or 100
+end
+
+--- Assign a group, which is responsible for rearming the ARTY group. If the group is too far away from the ARTY group it will be guided towards the ARTY group.
+-- @param #ARTY self
+-- @param Wrapper.Group#GROUP group Group that is supposed to rearm the ARTY group.
+function ARTY:SetRearmingGroup(group)
+  self:F({group=group})
+  self.RearmingGroup=group
+end
+
+--- Set the speed the rearming group moves at towards the ARTY group or the rearming place.
+-- @param #ARTY self
+-- @param #number speed Speed in km/h. Default 50 km/h.
+function ARTY:SetRearmingGroupSpeed(speed)
+  self:F({speed=speed})
+  self.RearmingGroupSpeed=speed or 50
+end
+
+--- Define if rearming group uses mainly roads to drive to the ARTY group or rearming place. 
+-- @param #ARTY self
+-- @param #boolean onroad If true, rearming group uses mainly roads. If false, it drives directly to the ARTY group or rearming place.
+function ARTY:SetRearmingGroupOnRoad(onroad)
+  self:F({onroad=onroad})
+  if onroad==nil then
+    onroad=true
+  end
+  self.RearmingGroupOnRoad=onroad
+end
+
+--- Define if ARTY group uses mainly roads to drive to the rearming place. 
+-- @param #ARTY self
+-- @param #boolean onroad If true, ARTY group uses mainly roads. If false, it drives directly to the rearming place.
+function ARTY:SetRearmingArtyOnRoad(onroad)
+  self:F({onroad=onroad})
+  if onroad==nil then
+    onroad=true
+  end
+  self.RearmingArtyOnRoad=onroad
+end
+
+--- Defines the rearming place of the ARTY group. If the place is too far away from the ARTY group it will be routed to the place.
+-- @param #ARTY self
+-- @param Wrapper.Point#COORDINATE coord Coordinates of the rearming place.
+function ARTY:SetRearmingPlace(coord)
+  self:F({coord=coord})
+  self.RearmingPlaceCoord=coord
+end
+
+--- Report messages of ARTY group turned on. This is the default.
+-- @param #ARTY self
+function ARTY:SetReportON()
+  self.report=true
+end
+
+--- Report messages of ARTY group turned off. Default is on.
+-- @param #ARTY self
+function ARTY:SetReportOFF()
+  self.report=false
+end
+
+--- Turn debug mode on. Information is printed to screen.
+-- @param #ARTY self
+function ARTY:SetDebugON()
+  self.Debug=true
+end
+
+--- Turn debug mode off. This is the default setting.
+-- @param #ARTY self
+function ARTY:SetDebugOFF()
+  self.Debug=false
+end
+
+--- Delete a target from target list.
+-- @param #ARTY self
+-- @param #string name Name of the target.
+function ARTY:RemoveTarget(name)
+  self:F2(name)
+  local id=self:_GetTargetIndexByName(name)
+  if id then
+    self:T(ARTY.id..string.format("Group %s: Removing target %s (id=%d).", self.Controllable:GetName(), name, id))
+    table.remove(self.targets, id)
+  end
+  self:T(ARTY.id..string.format("Group %s: Number of targets = %d.", self.Controllable:GetName(), #self.targets))
+end
+
+--- Delete a move from move list.
+-- @param #ARTY self
+-- @param #string name Name of the target.
+function ARTY:RemoveMove(name)
+  self:F2(name)
+  local id=self:_GetMoveIndexByName(name)
+  if id then
+    self:T(ARTY.id..string.format("Group %s: Removing move %s (id=%d).", self.Controllable:GetName(), name, id))
+    table.remove(self.moves, id)
+  end
+  self:T(ARTY.id..string.format("Group %s: Number of moves = %d.", self.Controllable:GetName(), #self.moves))
+end
+
+--- Delete ALL targets from current target list.
+-- @param #ARTY self
+function ARTY:RemoveAllTargets()
+  self:F2()
+  for _,target in pairs(self.targets) do
+    self:RemoveTarget(target.name)
+  end
+end
+
+--- Define shell types that are counted to determine the ammo amount the ARTY group has.
+-- @param #ARTY self
+-- @param #table tableofnames Table of shell type names.
+function ARTY:SetShellTypes(tableofnames)
+  self:F2(tableofnames)
+  self.ammoshells={}
+  for _,_type in pairs(tableofnames) do
+    table.insert(self.ammoshells, _type)
+  end
+end
+
+--- Define rocket types that are counted to determine the ammo amount the ARTY group has.
+-- @param #ARTY self
+-- @param #table tableofnames Table of rocket type names.
+function ARTY:SetRocketTypes(tableofnames)
+  self:F2(tableofnames)
+  self.ammorockets={}
+  for _,_type in pairs(tableofnames) do
+    table.insert(self.ammorockets, _type)
+  end
+end
+
+--- Define missile types that are counted to determine the ammo amount the ARTY group has.
+-- @param #ARTY self
+-- @param #table tableofnames Table of rocket type names.
+function ARTY:SetMissileTypes(tableofnames)
+  self:F2(tableofnames)
+  self.ammomissiles={}
+  for _,_type in pairs(tableofnames) do
+    table.insert(self.ammomissiles, _type)
+  end
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- FSM Start Event
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "Start" event. Initialized ROE and alarm state. Starts the event handler.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onafterStart(Controllable, From, Event, To)
+  self:_EventFromTo("onafterStart", Event, From, To)
+  
+  -- Debug output.
+  local text=string.format("Started ARTY version %s for group %s.", ARTY.version, Controllable:GetName())
+  self:E(ARTY.id..text)
+  MESSAGE:New(text, 10):ToAllIf(self.Debug)
+  
+  -- Get Ammo.
+  self.Nammo0, self.Nshells0, self.Nrockets0, self.Nmissiles0=self:GetAmmo(self.Debug)
+  
+  local text=string.format("\n******************************************************\n")
+  text=text..string.format("Arty group          = %s\n", Controllable:GetName())
+  text=text..string.format("Artillery attribute = %s\n", tostring(self.IsArtillery))
+  text=text..string.format("Type                = %s\n", self.Type)
+  text=text..string.format("Display Name        = %s\n", self.DisplayName)  
+  text=text..string.format("Number of units     = %d\n", self.IniGroupStrength)
+  text=text..string.format("Speed max           = %d km/h\n", self.SpeedMax)
+  text=text..string.format("Speed default       = %d km/h\n", self.Speed)
+  text=text..string.format("Min range           = %d km\n", self.minrange/1000)
+  text=text..string.format("Max range           = %d km\n", self.maxrange/1000)
+  text=text..string.format("Total ammo count    = %d\n", self.Nammo0)
+  text=text..string.format("Number of shells    = %d\n", self.Nshells0)
+  text=text..string.format("Number of rockets   = %d\n", self.Nrockets0)
+  text=text..string.format("Number of missiles  = %d\n", self.Nmissiles0)
+  if self.RearmingGroup or self.RearmingPlaceCoord then
+  text=text..string.format("Rearming safe dist. = %d m\n", self.RearmingDistance)
+  end
+  if self.RearmingGroup then
+  text=text..string.format("Rearming group      = %s\n", self.RearmingGroup:GetName())
+  text=text..string.format("Rearming group speed= %d km/h\n", self.RearmingGroupSpeed)
+  text=text..string.format("Rearming group roads= %s\n", tostring(self.RearmingGroupOnRoad))
+  end
+  if self.RearmingPlaceCoord then
+  local dist=self.InitialCoord:Get2DDistance(self.RearmingPlaceCoord)
+  text=text..string.format("Rearming coord dist = %d m\n", dist)
+  text=text..string.format("Rearming ARTY roads = %s\n", tostring(self.RearmingArtyOnRoad))
+  end
+  text=text..string.format("******************************************************\n")
+  text=text..string.format("Targets:\n")
+  for _, target in pairs(self.targets) do
+    text=text..string.format("- %s\n", self:_TargetInfo(target))
+  end
+  text=text..string.format("Moves:\n")
+  for i=1,#self.moves do
+    text=text..string.format("- %s\n", self:_MoveInfo(self.moves[i]))
+  end
+  text=text..string.format("******************************************************\n")
+  text=text..string.format("Shell types:\n")
+  for _,_type in pairs(self.ammoshells) do
+    text=text..string.format("- %s\n", _type)
+  end
+  text=text..string.format("Rocket types:\n")
+  for _,_type in pairs(self.ammorockets) do
+    text=text..string.format("- %s\n", _type)
+  end
+  text=text..string.format("Missile types:\n")
+  for _,_type in pairs(self.ammomissiles) do
+    text=text..string.format("- %s\n", _type)
+  end  
+  text=text..string.format("******************************************************")
+  self:T(ARTY.id..text)
+  
+  -- Add event handler.
+  self:HandleEvent(EVENTS.Shot, self._OnEventShot)
+  self:HandleEvent(EVENTS.Dead, self._OnEventDead)
+  
+  -- Start checking status.
+  self:__Status(self.StatusInterval)
+end
+
+--- After "Start" event. Initialized ROE and alarm state. Starts the event handler.
+-- @param #ARTY self
+function ARTY:_StatusReport()
+
+  -- Get Ammo.
+  local Nammo, Nshells, Nrockets, Nmissiles=self:GetAmmo()
+  local Tnow=timer.getTime()
+  local Clock=self:_SecondsToClock(timer.getAbsTime())
+  
+  local text=string.format("\n******************* STATUS ***************************\n")
+  text=text..string.format("ARTY group          = %s\n", self.Controllable:GetName())
+  text=text..string.format("Clock               = %s\n", Clock)
+  text=text..string.format("FSM state           = %s\n", self:GetState())
+  text=text..string.format("Total ammo count    = %d\n", Nammo)
+  text=text..string.format("Number of shells    = %d\n", Nshells)
+  text=text..string.format("Number of rockets   = %d\n", Nrockets)
+  text=text..string.format("Number of missiles  = %d\n", Nmissiles)
+  if self.currentTarget then
+  text=text..string.format("Current Target      = %s\n", tostring(self.currentTarget.name))
+  text=text..string.format("Curr. Tgt assigned  = %d\n", Tnow-self.currentTarget.Tassigned)
+  else
+  text=text..string.format("Current Target      = %s\n", "none")
+  end
+  text=text..string.format("Nshots curr. Target = %d\n", self.Nshots)
+  text=text..string.format("Targets:\n")
+  for i=1,#self.targets do
+    text=text..string.format("- %s\n", self:_TargetInfo(self.targets[i]))
+  end
+  text=text..string.format("Moves:\n")
+  for i=1,#self.moves do
+    text=text..string.format("- %s\n", self:_MoveInfo(self.moves[i]))
+  end
+  text=text..string.format("******************************************************")
+  env.info(ARTY.id..text)
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Event Handling
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Eventhandler for shot event.
+-- @param #ARTY self
+-- @param Core.Event#EVENTDATA EventData
+function ARTY:_OnEventShot(EventData)
+  self:F(EventData)
+  
+    -- Weapon data.
+  local _weapon = EventData.Weapon:getTypeName()  -- should be the same as Event.WeaponTypeName
+  local _weaponStrArray = self:_split(_weapon,"%.")
+  local _weaponName = _weaponStrArray[#_weaponStrArray]
+  
+  -- Debug info.
+  self:T3(ARTY.id.."EVENT SHOT: Ini unit    = "..EventData.IniUnitName)
+  self:T3(ARTY.id.."EVENT SHOT: Ini group   = "..EventData.IniGroupName)
+  self:T3(ARTY.id.."EVENT SHOT: Weapon type = ".._weapon)
+  self:T3(ARTY.id.."EVENT SHOT: Weapon name = ".._weaponName)
+  
+  local group = EventData.IniGroup --Wrapper.Group#GROUP
+  
+  if group and group:IsAlive() then
+  
+    if EventData.IniGroupName == self.Controllable:GetName() then
+    
+      if self.currentTarget then
+      
+        -- Increase number of shots fired by this group on this target.
+        self.Nshots=self.Nshots+1
+        
+        -- Debug output.
+        local text=string.format("Group %s fired shot %d of %d with weapon %s on target %s.", self.Controllable:GetName(), self.Nshots, self.currentTarget.nshells, _weaponName, self.currentTarget.name)
+        self:T(ARTY.id..text)
+        MESSAGE:New(text, 5):ToAllIf(self.Debug)
+        
+        -- Get current ammo.
+        local _nammo,_nshells,_nrockets,_nmissiles=self:GetAmmo()
+        
+        if _nammo==0 then
+        
+          self:T(ARTY.id..string.format("Group %s completely out of ammo.", self.Controllable:GetName()))
+          self:CeaseFire(self.currentTarget)
+          self:Winchester()
+          
+          -- Current target is deallocated ==> return
+          return
+        end
+        
+        -- Weapon type name for current target.
+        local _weapontype=self:_WeaponTypeName(self.currentTarget.weapontype)
+        self:T(ARTY.id..string.format("Group %s ammo: total=%d, shells=%d, rockets=%d, missiles=%d", self.Controllable:GetName(), _nammo, _nshells, _nrockets, _nmissiles))
+        self:T2(ARTY.id..string.format("Group %s uses weapontype %s for current target.", self.Controllable:GetName(), _weapontype))        
+        
+        -- Special weapon type requested ==> Check if corresponding ammo is empty.
+        if self.currentTarget.weapontype==ARTY.WeaponType.Cannon and _nshells==0 then
+        
+          self:T(ARTY.id.."Group %s, cannons requested but shells empty.", self.Controllable:GetName())
+          self:CeaseFire(self.currentTarget)
+          return
+        
+        elseif self.currentTarget.weapontype==ARTY.WeaponType.Rockets and _nrockets==0 then
+
+          self:T(ARTY.id.."Group %s, rockets requested but rockets empty.", self.Controllable:GetName())
+          self:CeaseFire(self.currentTarget)
+          return
+        
+        elseif self.currentTarget.weapontype==ARTY.WeaponType.UnguidedAny and _nshells+_nrockets==0 then
+        
+          self:T(ARTY.id.."Group %s, unguided weapon requested but shells AND rockets empty.", self.Controllable:GetName())
+          self:CeaseFire(self.currentTarget)
+          return
+        
+        elseif (self.currentTarget.weapontype==ARTY.WeaponType.GuidedMissile or self.currentTarget.weapontype==ARTY.WeaponType.CruiseMissile or self.currentTarget.weapontype==ARTY.WeaponType.AntiShipMissile) and _nmissiles==0 then
+        
+          self:T(ARTY.id.."Group %s, guided, anti-ship or cruise missiles requested but all missiles empty.", self.Controllable:GetName())
+          self:CeaseFire(self.currentTarget)
+          return
+          
+        end
+       
+        -- Check if number of shots reached max.
+        if self.Nshots >= self.currentTarget.nshells then
+          local text=string.format("Group %s stop firing on target %s.", self.Controllable:GetName(), self.currentTarget.name)
+          self:T(ARTY.id..text)
+          MESSAGE:New(text, 5):ToAllIf(self.Debug)
+          
+          -- Cease fire.
+          self:CeaseFire(self.currentTarget)
+        end
+        
+      else
+        self:E(ARTY.id..string.format("ERROR: No current target for group %s?!", self.Controllable:GetName()))
+      end        
+    end
+  end
+end
+
+--- Event handler for event Dead.
+-- @param #ARTY self
+-- @param Core.Event#EVENTDATA EventData
+function ARTY:_OnEventDead(EventData)
+  self:F(EventData)
+
+  -- Name of controllable.
+  local _name=self.Controllable:GetName()
+
+  -- Check for correct group.
+  if  EventData.IniGroupName==_name then
+    
+    -- Dead Unit.
+    self:T2(string.format("%s: Captured dead event for unit %s.", _name, EventData.IniUnitName))
+    
+    -- FSM Dead event. We give one second for update of data base.
+    self:__Dead(1)
+  end
+
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- FSM Events and States
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "Status" event. Report status of group.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onafterStatus(Controllable, From, Event, To)
+  self:_EventFromTo("onafterStatus", Event, From, To)
+  
+  -- Debug current status info.
+  if self.Debug then
+    self:_StatusReport()
+  end
+  
+  -- Group is out of ammo.
+  if self:is("OutOfAmmo") then
+    self:T2(ARTY.id..string.format("%s: OutOfAmmo. ==> Rearm", Controllable:GetName()))
+    self:Rearm()
+  end
+  
+  -- Group is out of moving.
+  if self:is("Moving") then
+    self:T2(ARTY.id..string.format("%s: Moving", Controllable:GetName()))
+  end
+  
+  -- Group is rearming.
+  if self:is("Rearming") then
+    local _rearmed=self:_CheckRearmed()
+    if _rearmed then
+      self:T2(ARTY.id..string.format("%s: Rearming ==> Rearmed", Controllable:GetName()))
+      self:Rearmed()
+    end
+  end
+  
+  -- Group finished rearming.
+  if self:is("Rearmed") then
+    local distance=self.Controllable:GetCoordinate():Get2DDistance(self.InitialCoord)
+    self:T2(ARTY.id..string.format("%s: Rearmed. Distance ARTY to InitalCoord = %d m", Controllable:GetName(), distance))
+    if distance <= self.RearmingDistance then
+      self:T2(ARTY.id..string.format("%s: Rearmed ==> CombatReady", Controllable:GetName()))
+      self:CombatReady()
+    end
+  end
+  
+  -- Group arrived at destination.
+  if self:is("Arrived") then
+    self:T2(ARTY.id..string.format("%s: Arrived ==> CombatReady", Controllable:GetName()))
+    self:CombatReady()
+  end
+  
+  -- Group is firing on target.
+  if self:is("Firing") then
+    -- Check that firing started after ~5 min. If not, target is removed.
+    self:_CheckShootingStarted()
+  end
+
+
+  -- Get a valid timed target if it is due to be attacked.  
+  local _timedTarget=self:_CheckTimedTargets()
+      
+  -- Get a valid normal target (one that is not timed).
+  local _normalTarget=self:_CheckNormalTargets()
+  
+  -- Get a commaned move to another location.
+  local _move=self:_CheckMoves()
+
+  
+  if (self:is("CombatReady") or self:is("Firing")) and _move then
+    -- Group is combat ready or firing but we have a move.
+    self:T2(ARTY.id..string.format("%s: CombatReady/Firing ==> Move", Controllable:GetName()))
+  
+    -- Command to move.
+    self.currentMove=_move
+    self:Move(_move.coord, _move.speed, _move.onroad)
+  
+  elseif self:is("CombatReady") or (self:is("Firing") and _timedTarget) then
+    -- Group is combat ready or firing but we have a high prio timed target.
+    self:T2(ARTY.id..string.format("%s: CombatReady or Firing+Timed Target ==> OpenFire", Controllable:GetName()))
+  
+    -- Engage target.
+    if _timedTarget then
+    
+      -- Cease fire on current target first.
+      if self.currentTarget then
+        self:CeaseFire(self.currentTarget)
+      end
+      
+      -- Open fire on timed target.
+      self:OpenFire(_timedTarget)
+      
+    elseif _normalTarget then
+    
+      -- Open fire on normal target.
+      self:OpenFire(_normalTarget)
+      
+    end
+  end
+  
+  -- Call status again in ~10 sec.
+  self:__Status(self.StatusInterval)
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Enter "CombatReady" state. Route the group back if necessary.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onenterCombatReady(Controllable, From, Event, To)
+  self:_EventFromTo("onenterCombatReady", Event, From, To)
+  -- Debug info
+  self:T3(ARTY.id..string.format("onenterComabReady, from=%s, event=%s, to=%s", From, Event, To))
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "OpenFire" event. Checks if group already has a target. Checks for valid min/max range and removes the target if necessary.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param #table target Array holding the target info.
+-- @return #boolean If true, proceed to onafterOpenfire.
+function ARTY:onbeforeOpenFire(Controllable, From, Event, To, target)
+  self:_EventFromTo("onbeforeOpenFire", Event, From, To)
+     
+  -- Check that group has no current target already.
+  if self.currentTarget then
+    -- This should not happen. Some earlier check failed.
+    self:E(ARTY.id..string.format("ERROR: Group %s already has a target %s!", self.Controllable:GetName(), self.currentTarget.name))
+    -- Deny transition.
+    return false
+  end
+  
+  -- Check if target is in range.
+  if not self:_TargetInRange(target) then
+    -- This should not happen. Some earlier check failed.
+    self:E(ARTY.id..string.format("ERROR: Group %s, target %s is out of range!", self.Controllable:GetName(), self.currentTarget.name))
+    -- Deny transition.
+    return false
+  end
+  
+  return true
+end
+
+--- After "OpenFire" event. Sets the current target and starts the fire at point task.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param #table target Array holding the target info.
+function ARTY:onafterOpenFire(Controllable, From, Event, To, target)
+  self:_EventFromTo("onafterOpenFire", Event, From, To)
+  
+  --local _coord=target.coord --Core.Point#COORDINATE  
+  --_coord:MarkToAll("Arty Target")
+    
+  -- Get target array index.
+  local id=self:_GetTargetIndexByName(target.name)
+  
+  -- Target is now under fire and has been engaged once more.
+  if id then
+    -- Set under fire flag.
+    self.targets[id].underfire=true
+    -- Set current target.
+    self.currentTarget=target
+    -- Set time the target was assigned.
+    self.currentTarget.Tassigned=timer.getTime()
+  end
+  
+  -- Distance to target
+  local range=Controllable:GetCoordinate():Get2DDistance(target.coord)
+  
+  -- Get ammo.
+  local Nammo, Nshells, Nrockets, Nmissiles=self:GetAmmo()
+  local nfire=Nammo
+  local _type="shots"
+  if self.WeaponType==ARTY.WeaponType.Auto then
+    nfire=Nammo
+    _type="shots"
+  elseif self.WeaponType==ARTY.WeaponType.Cannon then
+    nfire=Nshells
+    _type="shells"
+  elseif self.WeaponType==ARTY.WeaponType.Rockets then
+    nfire=Nrockets
+    _type="rockets"
+  elseif self.WeaponType==ARTY.WeaponType.UnguidedAny then
+    nfire=Nshells+Nrockets
+    _type="shells or rockets"
+  elseif self.WeaponType==ARTY.WeaponType.GuidedMissile then
+    nfire=Nmissiles
+    _type="guided missiles"
+  elseif self.WeaponType==ARTY.WeaponType.CruiseMissile then
+    nfire=Nmissiles
+    _type="cruise missiles"
+  elseif self.WeaponType==ARTY.WeaponType.AntiShipMissile then
+    nfire=Nmissiles
+    _type="anti-ship missiles"
+  end
+  
+  -- Adjust if less than requested ammo is left.
+  local _n=math.min(target.nshells, nfire)
+    
+  -- Send message.
+  local text=string.format("%s, opening fire on target %s with %d %s. Distance %.1f km.", Controllable:GetName(), target.name, _n, _type, range/1000)
+  self:T(ARTY.id..text)
+  MESSAGE:New(text, 10):ToCoalitionIf(Controllable:GetCoalition(), self.report)
+  
+  -- Start firing.
+  self:_FireAtCoord(target.coord, target.radius, target.nshells, target.weapontype)
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "CeaseFire" event. Clears task of the group and removes the target if max engagement was reached.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param #table target Array holding the target info.
+function ARTY:onafterCeaseFire(Controllable, From, Event, To, target)
+  self:_EventFromTo("onafterCeaseFire", Event, From, To)
+  
+  if target then
+    
+    -- Send message.
+    local text=string.format("%s, ceasing fire on target %s.", Controllable:GetName(), target.name)
+    self:T(ARTY.id..text)
+    MESSAGE:New(text, 10):ToCoalitionIf(Controllable:GetCoalition(), self.report)
+        
+    -- Get target array index.
+    local id=self:_GetTargetIndexByName(target.name)
+    
+    -- Increase engaged counter
+    if id then
+      -- Target was actually engaged. (Could happen that engagement was aborted while group was still aiming.)
+      if self.Nshots>0 then
+        self.targets[id].engaged=self.targets[id].engaged+1
+        -- Clear the attack time.
+        self.targets[id].time=nil
+      end
+      -- Target is not under fire any more.
+      self.targets[id].underfire=false
+    end
+    
+    -- If number of engagements has been reached, the target is removed.
+    if target.engaged >= target.maxengage then
+      self:RemoveTarget(target.name)
+    end
+    
+    -- Clear tasks.
+    self.Controllable:ClearTasks()
+    
+  end
+      
+  -- Set number of shots to zero.
+  self.Nshots=0
+  
+  -- ARTY group has no current target any more.
+  self.currentTarget=nil
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "Winchester" event. Group is out of ammo. Trigger "Rearm" event.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onafterWinchester(Controllable, From, Event, To)
+  self:_EventFromTo("onafterWinchester", Event, From, To)
+  
+  -- Send message.
+  local text=string.format("%s, winchester!", Controllable:GetName())
+  self:T(ARTY.id..text)
+  MESSAGE:New(text, 30):ToCoalitionIf(Controllable:GetCoalition(), self.report or self.Debug)
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "Rearm" event. Check if a unit to rearm the ARTY group has been defined.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @return #boolean If true, proceed to onafterRearm.
+function ARTY:onbeforeRearm(Controllable, From, Event, To)
+  self:_EventFromTo("onbeforeRearm", Event, From, To)
+  
+  -- Check if a reaming unit or rearming place was specified.
+  if self.RearmingGroup and self.RearmingGroup:IsAlive() then
+    return true
+  elseif self.RearmingPlaceCoord then
+    return true 
+  else
+    return false
+  end
+  
+end
+
+--- After "Rearm" event. Send message if reporting is on. Route rearming unit to ARTY group.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onafterRearm(Controllable, From, Event, To)
+  self:_EventFromTo("onafterRearm", Event, From, To)
+  
+     -- Coordinate of ARTY unit.
+    local coordARTY=self.Controllable:GetCoordinate()
+    
+    -- Coordinate of rearming group.
+    local coordRARM=nil
+    if self.RearmingGroup then
+      -- Coordinate of the rearming unit.
+      coordRARM=self.RearmingGroup:GetCoordinate()
+      -- Remember the coordinates of the rearming unit. After rearming it will go back to this position.
+      self.RearmingGroupCoord=coordRARM
+    end
+    
+    if self.RearmingGroup and self.RearmingPlaceCoord and self.SpeedMax>0 then
+    
+      -- CASE 1: Rearming unit and ARTY group meet at rearming place.
+      
+      -- Send message.
+      local text=string.format("%s, %s, request rearming at rearming place.", Controllable:GetName(), self.RearmingGroup:GetName())
+      self:T(ARTY.id..text)
+      MESSAGE:New(text, 10):ToCoalitionIf(Controllable:GetCoalition(), self.report or self.Debug)
+      
+      -- Distances.
+      local dA=coordARTY:Get2DDistance(self.RearmingPlaceCoord)
+      local dR=coordRARM:Get2DDistance(self.RearmingPlaceCoord)
+      
+      -- Route ARTY group to rearming place.
+      if dA > self.RearmingDistance then
+        self:Move(self:_VicinityCoord(self.RearmingPlaceCoord, self.RearmingDistance/4, self.RearmingDistance/2), self.Speed, self.RearmingArtyOnRoad)
+      end
+      
+      -- Route Rearming group to rearming place.
+      if dR > self.RearmingDistance then
+        self:_Move(self.RearmingGroup, self:_VicinityCoord(self.RearmingPlaceCoord, self.RearmingDistance/4, self.RearmingDistance/2), self.RearmingGroupSpeed, self.RearmingGroupOnRoad)
+      end
+    
+    elseif self.RearmingGroup then
+    
+      -- CASE 2: Rearming unit drives to ARTY group.
+    
+      -- Send message.
+      local text=string.format("%s, %s, request rearming.", Controllable:GetName(), self.RearmingGroup:GetName())
+      self:T(ARTY.id..text)
+      MESSAGE:New(text, 10):ToCoalitionIf(Controllable:GetCoalition(), self.report or self.Debug)
+          
+      -- Distance between ARTY group and rearming unit.
+      local distance=coordARTY:Get2DDistance(coordRARM)
+       
+      -- If distance is larger than ~100 m, the Rearming unit is routed to the ARTY group.
+      if distance > self.RearmingDistance then
+            
+        -- Route rearming group to ARTY group.
+        self:_Move(self.RearmingGroup, self:_VicinityCoord(coordARTY), self.RearmingGroupSpeed, self.RearmingGroupOnRoad)
+      end
+      
+    elseif self.RearmingPlaceCoord then
+    
+      -- CASE 3: ARTY drives to rearming place.
+      
+      -- Send message.
+      local text=string.format("%s, moving to rearming place.", Controllable:GetName())
+      self:T(ARTY.id..text)
+      MESSAGE:New(text, 10):ToCoalitionIf(Controllable:GetCoalition(), self.report or self.Debug)
+  
+      -- Distance.
+      local dA=coordARTY:Get2DDistance(self.RearmingPlaceCoord)
+      
+      -- Route ARTY group to rearming place.
+      if dA > self.RearmingDistance then
+        self:Move(self:_VicinityCoord(self.RearmingPlaceCoord), self.Speed, self.RearmingArtyOnRoad)
+      end    
+      
+    end
+    
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "Rearmed" event. Send ARTY and rearming group back to their inital positions.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onafterRearmed(Controllable, From, Event, To)
+  self:_EventFromTo("onafterRearmed", Event, From, To)
+  
+  -- Send message.
+  local text=string.format("%s, rearming complete.", Controllable:GetName())
+  self:T(ARTY.id..text)
+  MESSAGE:New(text, 10):ToCoalitionIf(Controllable:GetCoalition(), self.report or self.Debug)
+  
+  -- Route ARTY group back to where it came from (if distance is > 100 m).
+  local d1=self.Controllable:GetCoordinate():Get2DDistance(self.InitialCoord)
+  if d1 > self.RearmingDistance then
+    self:Move(self.InitialCoord, self.Speed, self.RearmingArtyOnRoad)
+  end
+  
+  -- Route unit back to where it came from (if distance is > 100 m).
+  if self.RearmingGroup and self.RearmingGroup:IsAlive() then
+    local d=self.RearmingGroup:GetCoordinate():Get2DDistance(self.RearmingGroupCoord)
+    if d > self.RearmingDistance then
+      self:_Move(self.RearmingGroup, self.RearmingGroupCoord, self.RearmingGroupSpeed, self.RearmingGroupOnRoad)
+    end
+  end
+  
+end
+
+--- Check if ARTY group is rearmed, i.e. has its full amount of ammo.
+-- @param #ARTY self
+-- @return #boolean True if rearming is complete, false otherwise.
+function ARTY:_CheckRearmed()
+  self:F2()
+
+  -- Get current ammo.
+  local nammo,nshells,nrockets,nmissiles=self:GetAmmo()
+  
+  -- Number of units still alive.
+  local units=self.Controllable:GetUnits()
+  local nunits=0
+  if units then
+    nunits=#units
+  end
+  
+  -- Full Ammo count.
+  self.FullAmmo=self.Nammo0 * nunits / self.IniGroupStrength
+  
+  -- Rearming status in per cent.
+  local _rearmpc=nammo/self.FullAmmo*100
+  
+  -- Send message.
+  if _rearmpc>1 then
+    local text=string.format("%s, rearming %d %% complete.", self.Controllable:GetName(), _rearmpc)
+    self:T(ARTY.id..text)
+    MESSAGE:New(text, 10):ToCoalitionIf(self.Controllable:GetCoalition(), self.report or self.Debug)
+  end
+      
+  -- Return if ammo is full.
+  if nammo==self.FullAmmo then
+    return true
+  else
+    return false
+  end
+
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "Move" event. Check if a unit to rearm the ARTY group has been defined.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param Wrapper.Point#COORDINATE ToCoord Coordinate to which the ARTY group should move.
+-- @param #boolean OnRoad If true group should move on road mainly. 
+-- @return #boolean If true, proceed to onafterMove.
+function ARTY:onbeforeMove(Controllable, From, Event, To, ToCoord, OnRoad)
+  self:_EventFromTo("onbeforeMove", Event, From, To)
+  
+  -- Check if group can actually move...
+  if self.SpeedMax==0 then
+    return false
+  end
+  
+  -- Cease fire first.
+  if self.currentTarget then
+    self:CeaseFire(self.currentTarget)
+  end
+      
+  return true
+end
+
+--- After "Move" event. Route group to given coordinate.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param Core.Point#COORDINATE ToCoord Coordinate to which the ARTY group should move.
+-- @param #number Speed Speed in km/h at which the grou p should move.
+-- @param #boolean OnRoad If true group should move on road mainly. 
+function ARTY:onafterMove(Controllable, From, Event, To, ToCoord, Speed, OnRoad)
+  self:_EventFromTo("onafterMove", Event, From, To)
+
+  -- Set alarm state to green and ROE to weapon hold.
+  self.Controllable:OptionAlarmStateGreen()
+  self.Controllable:OptionROEHoldFire()
+  
+  -- Take care of max speed.
+  local _Speed=math.min(Speed, self.SpeedMax)
+  
+  -- Smoke coordinate
+  if self.Debug then
+    ToCoord:SmokeRed()
+  end
+
+  -- Route group to coodinate.
+  self:_Move(self.Controllable, ToCoord, _Speed, OnRoad)
+  
+end
+
+--- After "Arrived" event. Group has reached its destination.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onafterArrived(Controllable, From, Event, To)
+  self:_EventFromTo("onafterArrived", Event, From, To)
+
+  -- Set alarm state to auto.
+  self.Controllable:OptionAlarmStateAuto()
+  
+  -- Send message
+  local text=string.format("%s, arrived at destination.", Controllable:GetName())
+  self:T(ARTY.id..text)
+  MESSAGE:New(text, 10):ToCoalitionIf(Controllable:GetCoalition(), self.report or self.Debug)
+  
+  -- Remove executed move from queue.
+  if self.currentMove then
+    self:RemoveMove(self.currentMove.name)
+    self.currentMove=nil
+  end
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "NewTarget" event.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param #table target Array holding the target parameters.
+-- @return #boolean If true, proceed to onafterOpenfire.
+function ARTY:onafterNewTarget(Controllable, From, Event, To, target)
+  self:_EventFromTo("onafterNewTarget", Event, From, To)
+  
+  -- Debug message.
+  local text=string.format("Adding new target %s.", target.name)
+  --MESSAGE:New(text, 30):ToAllIf(self.Debug)
+  self:T(ARTY.id..text)
+end
+
+--- After "NewMove" event.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param #table move Array holding the move parameters.
+-- @return #boolean If true, proceed to onafterOpenfire.
+function ARTY:onafterNewMove(Controllable, From, Event, To, move)
+  self:_EventFromTo("onafterNewTarget", Event, From, To)
+  
+  -- Debug message.
+  local text=string.format("Adding new move %s.", move.name)
+  MESSAGE:New(text, 30):ToAllIf(self.Debug)
+  self:T(ARTY.id..text)
+end
+
+
+--- After "Dead" event, when a unit has died. When all units of a group are dead trigger "Stop" event.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onafterDead(Controllable, From, Event, To)
+  self:_EventFromTo("onafterDead", Event, From, To)
+  
+  -- Number of units left in the group.
+  local units=self.Controllable:GetUnits()
+  local nunits=0
+  if units~=nil then
+    nunits=#units
+  end
+  
+  -- Adjust full ammo count
+  self.FullAmmo=self.Nammo0*nunits/self.IniGroupStrength
+  
+  -- Message.
+  local text=string.format("%s, one of our units just died! %d units left.", self.Controllable:GetName(), nunits)
+  MESSAGE:New(text, 10):ToAllIf(self.Debug)
+  self:T(ARTY.id..text)
+      
+  -- Go to stop state.
+  if nunits==0 then
+    self:Stop()
+  end
+  
+end
+
+--- After "Stop" event. Unhandle events and cease fire on current target.
+-- @param #ARTY self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function ARTY:onafterStop(Controllable, From, Event, To)
+  self:_EventFromTo("onafterStop", Event, From, To)
+  
+  -- Debug info.
+  self:T(ARTY.id..string.format("Stopping ARTY FSM for group %s.", Controllable:GetName()))
+  
+    -- Cease Fire on current target.
+  if self.currentTarget then
+    self:CeaseFire(self.currentTarget)
+  end
+  
+  -- Remove all targets.
+  --self:RemoveAllTargets()
+  
+  -- Unhandle event.
+  self:UnHandleEvent(EVENTS.Shot)
+  self:UnHandleEvent(EVENTS.Dead)
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Set task for firing at a coordinate.
+-- @param #ARTY self
+-- @param Core.Point#COORDINATE coord Coordinates to fire upon.
+-- @param #number radius Radius around coordinate.
+-- @param #number nshells Number of shells to fire.
+-- @param #number weapontype Type of weapon to use.
+function ARTY:_FireAtCoord(coord, radius, nshells, weapontype)
+  self:F({coord=coord, radius=radius, nshells=nshells})
+
+  -- Controllable.
+  local group=self.Controllable --Wrapper.Group#GROUP
+
+  -- Set ROE to weapon free.
+  group:OptionROEOpenFire()
+  
+  -- Get Vec2
+  local vec2=coord:GetVec2()
+  
+  -- Get task.
+  local fire=group:TaskFireAtPoint(vec2, radius, nshells, weapontype)
+  
+  -- Execute task.
+  group:SetTask(fire)
+end
+
+
+
+--- Sort targets with respect to priority and number of times it was already engaged.
+-- @param #ARTY self
+function ARTY:_SortTargetQueuePrio()
+  self:F2()
+  
+  -- Sort results table wrt times they have already been engaged.
+  local function _sort(a, b)
+    return (a.engaged < b.engaged) or (a.engaged==b.engaged and a.prio < b.prio)
+  end
+  table.sort(self.targets, _sort)
+  
+  -- Debug output.
+  self:T3(ARTY.id.."Sorted targets wrt prio and number of engagements:")
+  for i=1,#self.targets do
+    local _target=self.targets[i]
+    self:T3(ARTY.id..string.format("Target %s", self:_TargetInfo(_target)))
+  end
+end
+
+--- Sort array with respect to time. Array elements must have a .time entry. 
+-- @param #ARTY self
+-- @param #table queue Array to sort. Should have elemnt .time.
+function ARTY:_SortQueueTime(queue)
+  self:F3({queue=queue})
+
+  -- Sort targets w.r.t attack time.
+  local function _sort(a, b)
+    if a.time == nil and b.time == nil then
+      return false
+    end
+    if a.time == nil then
+      return false
+    end
+    if b.time == nil then
+      return true
+    end
+    return a.time < b.time
+  end
+  table.sort(queue, _sort)
+
+  -- Debug output.
+  self:T3(ARTY.id.."Sorted queue wrt time:")
+  for i=1,#queue do
+    local _queue=queue[i]
+    local _time=tostring(_queue.time)
+    local _clock=tostring(self:_SecondsToClock(_queue.time))
+    self:T3(ARTY.id..string.format("%s: time=%s, clock=%s", _queue.name, _time, _clock))
+  end
+
+end
+
+--- Check all timed targets and return the target which should be attacked next.
+-- @param #ARTY self
+-- @return #table Target which is due to be attacked now. 
+function ARTY:_CheckTimedTargets()
+  self:F3()
+  
+  -- Current time.
+  local Tnow=timer.getAbsTime()
+  
+  -- Sort Targets wrt time.
+  self:_SortQueueTime(self.targets)
+  
+  for i=1,#self.targets do
+    local _target=self.targets[i]
+    
+    -- Debug info.
+    self:T3(ARTY.id..string.format("Check TIMED target %d: %s", i, self:_TargetInfo(_target)))
+    
+    -- Check if target has an attack time which has already passed. Also check that target is not under fire already and that it is in range. 
+    if _target.time and Tnow>=_target.time and _target.underfire==false and self:_TargetInRange(_target) then
+    
+      -- Check if group currently has a target and whether its priorty is lower than the timed target.
+      if self.currentTarget then
+        if self.currentTarget.prio > _target.prio then
+          -- Current target under attack but has lower priority than this target.
+          self:T2(ARTY.id..string.format("Found TIMED HIGH PRIO target %s.", self:_TargetInfo(_target)))
+          return _target
+        end
+      else
+        -- No current target.
+        self:T2(ARTY.id..string.format("Found TIMED target %s.", self:_TargetInfo(_target)))
+        return _target
+      end
+    end
+  end
+
+  return nil
+end
+
+--- Check all moves and return the one which should be executed next.
+-- @param #ARTY self
+-- @return #table Move which is due. 
+function ARTY:_CheckMoves()
+  self:F3()
+  
+  -- Current time.
+  local Tnow=timer.getAbsTime()
+  
+  -- Sort Targets wrt time.
+  self:_SortQueueTime(self.moves)
+  
+  -- Check if we are currently firing.
+  local firing=false
+  if self.currentTarget then
+    firing=true
+  end
+  
+  for i=1,#self.moves do
+    local _move=self.moves[i]
+    
+    -- Check if time for move is reached. 
+    if Tnow >= _move.time and (firing==false or _move.cancel) then
+      return _move
+    end 
+  end
+  
+  return nil
+end
+
+--- Check all normal (untimed) targets and return the target with the highest priority which has been engaged the fewest times.
+-- @param #ARTY self
+-- @return #table Target which is due to be attacked now or nil if no target could be found.
+function ARTY:_CheckNormalTargets()
+
+  -- Sort targets w.r.t. prio and number times engaged already.
+  self:_SortTargetQueuePrio()
+      
+  -- Loop over all sorted targets.
+  for i=1,#self.targets do  
+    local _target=self.targets[i]
+    
+    -- Debug info.
+    self:T3(ARTY.id..string.format("Check NORMAL target %d: %s", i, self:_TargetInfo(_target)))
+  
+    -- Check that target no time, is not under fire currently and in range.
+    if _target.underfire==false and _target.time==nil and _target.maxengage > _target.engaged and self:_TargetInRange(_target) then
+      
+      -- Debug info.
+      self:T2(ARTY.id..string.format("Found NORMAL target %s", self:_TargetInfo(_target)))
+      
+      return _target
+    end
+  end
+  
+  return nil
+end
+
+--- Get the number of shells a unit or group currently has. For a group the ammo count of all units is summed up.
+-- @param #ARTY self
+-- @param #boolean display Display ammo table as message to all. Default false.
+-- @return #number Total amount of ammo the whole group has left.
+-- @return #number Number of shells the group has left.
+-- @return #number Number of rockets the group has left.
+-- @return #number Number of missiles the group has left.
+function ARTY:GetAmmo(display)
+  self:F3({display=display})
+  
+  -- Default is display false.
+  if display==nil then
+    display=false
+  end
+    
+  -- Init counter.
+  local nammo=0
+  local nshells=0
+  local nrockets=0
+  local nmissiles=0
+  
+  -- Get all units.
+  local units=self.Controllable:GetUnits()
+  if units==nil then
+    return nammo, nshells, nrockets, nmissiles
+  end
+    
+  for _,unit in pairs(units) do
+  
+    if unit and unit:IsAlive() then
+    
+      -- Output.
+      local text=string.format("ARTY group %s - unit %s:\n", self.Controllable:GetName(), unit:GetName())
+  
+      -- Get ammo table.
+      local ammotable=unit:GetAmmo()
+
+      if ammotable ~= nil then
+      
+        local weapons=#ammotable
+        
+        -- Display ammo table
+        if display then
+          self:E(ARTY.id..string.format("Number of weapons %d.", weapons))
+          self:E({ammotable=ammotable})    
+          self:E(ARTY.id.."Ammotable:")
+          for id,bla in pairs(ammotable) do
+            self:E({id=id, ammo=bla})
+          end
+        end
+                
+        -- Loop over all weapons.
+        for w=1,weapons do
+        
+          -- Number of current weapon.
+          local Nammo=ammotable[w]["count"]
+          
+          -- Typename of current weapon
+          local Tammo=ammotable[w]["desc"]["typeName"]
+          
+          -- Get the weapon category: shell=0, missile=1, rocket=2, bomb=3
+          local Category=ammotable[w].desc.category
+          
+          local MissileCategory=nil
+          if Category==Weapon.Category.MISSILE then
+            MissileCategory=ammotable[w].desc.missileCategory
+          end
+          
+          -- Check for correct shell type.
+          local _gotshell=false
+          if #self.ammoshells>0 then
+            -- User explicitly specified the valid type(s) of shells.
+            for _,_type in pairs(self.ammoshells) do
+              if string.match(Tammo, _type) then
+                _gotshell=true
+              end
+            end
+          else
+            if Category==Weapon.Category.SHELL then
+              _gotshell=true
+            end
+          end
+
+          -- Check for correct rocket type.
+          local _gotrocket=false
+          if #self.ammorockets>0 then
+            for _,_type in pairs(self.ammorockets) do
+              if string.match(Tammo, _type) then
+                _gotrocket=true
+              end
+            end
+          else
+            if Category==Weapon.Category.ROCKET then
+              _gotrocket=true
+            end            
+          end
+
+          -- Check for correct missile type.
+          local _gotmissile=false
+          if #self.ammomissiles>0 then
+            for _,_type in pairs(self.ammomissiles) do
+              if string.match(Tammo,_type) then
+                _gotmissile=true
+              end
+            end
+          else
+            if Category==Weapon.Category.ROCKET then
+              _gotmissile=true
+            end                      
+          end
+                           
+          -- We are specifically looking for shells or rockets here.
+          if _gotshell then 
+          
+            -- Add up all shells.
+            nshells=nshells+Nammo
+          
+            -- Debug info.
+            text=text..string.format("- %d shells of type %s (category=%d, missile category=%s)\n", Nammo, Tammo, Category, tostring(MissileCategory))
+            
+          elseif _gotrocket then
+          
+            -- Add up all rockets.
+            nrockets=nrockets+Nammo
+            
+            -- Debug info.
+            text=text..string.format("- %d rockets of type %s (category=%d, missile category=%s)\n", Nammo, Tammo, Category, tostring(MissileCategory))
+            
+          elseif _gotmissile then
+          
+            -- Add up all rockets.
+            nmissiles=nmissiles+Nammo
+            
+            -- Debug info.
+            text=text..string.format("- %d missiles of type %s (category=%d, missile category=%s)\n", Nammo, Tammo, Category, tostring(MissileCategory))
+                                
+          else
+          
+            -- Debug info.
+            text=text..string.format("- %d unknown ammo of type %s (category=%d, missile category=%s)\n", Nammo, Tammo, Category, tostring(MissileCategory))
+            
+          end
+          
+        end
+      end
+
+      -- Debug text and send message.
+      if display then
+        self:E(ARTY.id..text)
+      else
+        self:T3(ARTY.id..text)
+      end
+      MESSAGE:New(text, 10):ToAllIf(display)
+               
+    end
+  end
+      
+  -- Total amount of ammunition.
+  nammo=nshells+nrockets+nmissiles
+  
+  return nammo, nshells, nrockets, nmissiles
+end
+
+
+--- Check whether shooting started within a certain time (~5 min). If not, the current target is considered invalid and removed from the target list.
+-- @param #ARTY self
+function ARTY:_CheckShootingStarted()
+  self:F2()
+  
+  if self.currentTarget then
+  
+    -- Current time.
+    local Tnow=timer.getTime()
+    
+    -- Get name and id of target.
+    local name=self.currentTarget.name
+          
+    -- Time that passed after current target has been assigned.
+    local dt=Tnow-self.currentTarget.Tassigned
+    
+    -- Debug info
+    if self.Nshots==0 then
+      self:T(ARTY.id..string.format("%s, waiting for %d seconds for first shot on target %s.", self.Controllable:GetName(), dt, name))
+    end
+    
+    -- Check if we waited long enough and no shot was fired.
+    if dt > self.WaitForShotTime and self.Nshots==0 then
+    
+      -- Debug info.
+      self:T(ARTY.id..string.format("%s, no shot event after %d seconds. Removing current target %s from list.", self.Controllable:GetName(), self.WaitForShotTime, name))
+    
+      -- CeaseFire.
+      self:CeaseFire(self.currentTarget)
+    
+      -- Remove target from list.
+      self:RemoveTarget(name)
+      
+    end
+  end
+end
+
+--- Get the index of a target by its name.
+-- @param #ARTY self
+-- @param #string name Name of target.
+-- @return #number Arrayindex of target.
+function ARTY:_GetTargetIndexByName(name)
+  self:F2(name)
+  
+  for i=1,#self.targets do
+    local targetname=self.targets[i].name
+    if targetname==name then
+      self:T2(ARTY.id..string.format("Found target with name %s. Index = %d", name, i))
+      return i
+    end
+  end
+  
+  self:E(ARTY.id..string.format("ERROR: Target with name %s could not be found!", name))
+  return nil
+end
+
+--- Get the index of a move by its name.
+-- @param #ARTY self
+-- @param #string name Name of move.
+-- @return #number Arrayindex of move.
+function ARTY:_GetMoveIndexByName(name)
+  self:F2(name)
+  
+  for i=1,#self.moves do
+    local movename=self.moves[i].name
+    if movename==name then
+      self:T2(ARTY.id..string.format("Found move with name %s. Index = %d", name, i))
+      return i
+    end
+  end
+  
+  self:E(ARTY.id..string.format("ERROR: Move with name %s could not be found!", name))
+  return nil
+end
+
+
+
+--- Check if a name is unique. If not, a new unique name is created by adding a running index #01, #02, ...
+-- @param #ARTY self
+-- @param #table givennames Table with entries of already given names. Must contain a .name item.
+-- @param #string name Desired name.
+-- @return #string Unique name, which is not already given for another target.
+function ARTY:_CheckName(givennames, name)
+  self:F2({givennames=givennames, name=name})  
+
+  local newname=name
+  local counter=1
+  
+  repeat
+    -- We assume the name is unique.
+    local unique=true
+    
+    -- Loop over all targets already defined.
+    for _,_target in pairs(givennames) do
+    
+      -- Target name.
+      local _givenname=givennames.name
+      
+      if _givenname==newname then
+        -- Define new name = "name #01"
+        newname=string.format("%s #%02d", name, counter)
+        
+        -- Increase counter.
+        counter=counter+1
+        
+        -- Name is already used for another target ==> try again with new name.
+        unique=false
+      end      
+    end
+    
+  until (unique)
+  
+  -- Debug output and return new name.
+  self:T2(string.format("Original name %s, new name = %s", name, newname))
+  return newname
+end
+
+--- Check if target is in range.
+-- @param #ARTY self
+-- @param #table target Target table.
+-- @return #boolean True if target is in range, false otherwise.
+function ARTY:_TargetInRange(target)
+  self:F3(target)
+
+  -- Distance between ARTY group and target.
+  local _dist=self.Controllable:GetCoordinate():Get2DDistance(target.coord)
+  
+  -- Assume we are in range.
+  local _inrange=true
+  local text=""
+  
+  if _dist < self.minrange then
+    _inrange=false
+    text=string.format("%s, target is out of range. Distance of %.1f km is below min range of %.1f km.", self.Controllable:GetName(), _dist/1000, self.minrange/1000)
+  elseif _dist > self.maxrange then
+    _inrange=false
+    text=string.format("%s, target is out of range. Distance of %.1f km is greater than max range of %.1f km.", self.Controllable:GetName(), _dist/1000, self.maxrange/1000)
+  end
+  
+  -- Debug output.
+  if not _inrange then
+    self:T(ARTY.id..text)
+    MESSAGE:New(text, 10):ToCoalitionIf(self.Controllable:GetCoalition(), self.report or self.Debug)
+  end
+    
+  -- Remove target if ARTY group cannot move. No change to be ever in range.
+  if self.Speed==0 then
+    self:RemoveTarget(target.name)
+  end
+
+  return _inrange
+end
+
+--- Get the weapon type name, which should be used to attack the target.
+-- @param #ARTY self
+-- @param #number tnumber Number of weapon type ARTY.WeaponType.XXX
+-- @return #number tnumber of weapon type.
+function ARTY:_WeaponTypeName(tnumber)
+  self:F2(tnumber)
+  local name="unknown"
+  if tnumber==ARTY.WeaponType.Auto then
+    name="Auto" -- (Cannon, Rockets, Missiles)
+  elseif tnumber==ARTY.WeaponType.Cannon then
+    name="Cannons"
+  elseif tnumber==ARTY.WeaponType.Rockets then
+    name="Rockets"
+   elseif tnumber==ARTY.WeaponType.UnguidedAny then
+    name="Unguided Weapons" -- (Cannon or Rockets)
+  elseif tnumber==ARTY.WeaponType.CruiseMissile then
+    name="Cruise Missiles"
+  elseif tnumber==ARTY.WeaponType.GuidedMissile then
+    name="Guided Missiles"
+  elseif tnumber==ARTY.WeaponType.AntiShipMissile then
+    name="Anti-Ship Missiles"
+  end
+  return name
+end
+
+--- Find a random coordinate in the vicinity of another coordinate. 
+-- @param #ARTY self
+-- @param Core.Point#COORDINATE coord Center coordinate.
+-- @param #number rmin (Optional) Minimum distance in meters from center coordinate. Default 20 m.
+-- @param #number rmax (Optional) Maximum distance in meters from center coordinate. Default 80 m.
+-- @return Core.Point#COORDINATE Random coordinate in a certain distance from center coordinate.
+function ARTY:_VicinityCoord(coord, rmin, rmax)
+  self:F2({coord=coord, rmin=rmin, rmax=rmax})
+  -- Set default if necessary.
+  rmin=rmin or 20
+  rmax=rmax or 80
+  -- Random point withing range.
+  local vec2=coord:GetRandomVec2InRadius(rmax, rmin)
+  local pops=COORDINATE:NewFromVec2(vec2)
+  -- Debug info.
+  self:T(ARTY.id..string.format("Vicinity distance = %d (rmin=%d, rmax=%d)", pops:Get2DDistance(coord), rmin, rmax))
+  return pops
+end
+
+--- Print event-from-to string to DCS log file. 
+-- @param #ARTY self
+-- @param #string BA Before/after info.
+-- @param #string Event Event.
+-- @param #string From From state.
+-- @param #string To To state.
+function ARTY:_EventFromTo(BA, Event, From, To)
+  local text=string.format("%s: %s EVENT %s: %s --> %s", BA, self.Controllable:GetName(), Event, From, To)
+  self:T3(ARTY.id..text)
+end
+
+--- Split string. C.f. http://stackoverflow.com/questions/1426954/split-string-in-lua
+-- @param #ARTY self
+-- @param #string str Sting to split.
+-- @param #string sep Speparator for split.
+-- @return #table Split text.
+function ARTY:_split(str, sep)
+  self:F3({str=str, sep=sep})  
+  local result = {}
+  local regex = ("([^%s]+)"):format(sep)
+  for each in str:gmatch(regex) do
+    table.insert(result, each)
+  end
+  return result
+end
+
+--- Returns the target parameters as formatted string.
+-- @param #ARTY self
+-- @return #string name, prio, radius, nshells, engaged, maxengage, time, weapontype
+function ARTY:_TargetInfo(target)
+  local clock=tostring(self:_SecondsToClock(target.time))
+  local weapon=self:_WeaponTypeName(target.weapontype)
+  local _underfire=tostring(target.underfire)
+  return string.format("%s: prio=%d, radius=%d, nshells=%d, engaged=%d/%d, weapontype=%s, time=%s, underfire=%s",
+  target.name, target.prio, target.radius, target.nshells, target.engaged, target.maxengage, weapon, clock,_underfire)
+end
+
+--- Returns a formatted string with information about all move parameters.
+-- @param #ARTY self
+-- @param #table move Move table item.
+-- @return #string Info string.
+function ARTY:_MoveInfo(move)
+  self:F3(move)
+  local _clock=self:_SecondsToClock(move.time)
+  return string.format("%s: time=%s, speed=%d, onroad=%s, cancel=%s", move.name, _clock, move.speed, tostring(move.onroad), tostring(move.cancel))
+end
+
+--- Convert time in seconds to hours, minutes and seconds.
+-- @param #ARTY self
+-- @param #number seconds Time in seconds.
+-- @return #string Time in format Hours:minutes:seconds.
+function ARTY:_SecondsToClock(seconds)
+  self:F3({seconds=seconds})
+  
+  if seconds==nil then
+    return nil
+  end
+  
+  -- Seconds
+  local seconds = tonumber(seconds)
+  
+  -- Seconds of this day.
+  local _seconds=seconds%(60*60*24)
+
+  if seconds <= 0 then
+    return nil
+  else
+    local hours = string.format("%02.f", math.floor(_seconds/3600))
+    local mins  = string.format("%02.f", math.floor(_seconds/60 - (hours*60)))
+    local secs  = string.format("%02.f", math.floor(_seconds - hours*3600 - mins *60))
+    local days  = string.format("%d", seconds/(60*60*24))
+    return hours..":"..mins..":"..secs.."+"..days
+  end
+end
+
+--- Convert clock time from hours, minutes and seconds to seconds.
+-- @param #ARTY self
+-- @param #string clock String of clock time. E.g., "06:12:35".
+function ARTY:_ClockToSeconds(clock)
+  self:F3({clock=clock})
+  
+  if clock==nil then
+    return nil
+  end
+  
+  -- Seconds init.
+  local seconds=0
+  
+  -- Split additional days.
+  local dsplit=self:_split(clock, "+")
+  
+  -- Convert days to seconds.
+  if #dsplit>1 then
+    seconds=seconds+tonumber(dsplit[2])*60*60*24
+  end
+
+  -- Split hours, minutes, seconds    
+  local tsplit=self:_split(dsplit[1], ":")
+
+  -- Get time in seconds
+  local i=1
+  for _,time in ipairs(tsplit) do
+    if i==1 then
+      -- Hours
+      seconds=seconds+tonumber(time)*60*60
+    elseif i==2 then
+      -- Minutes
+      seconds=seconds+tonumber(time)*60
+    elseif i==3 then
+      -- Seconds
+      seconds=seconds+tonumber(time)
+    end
+    i=i+1
+  end
+  
+  self:T3(ARTY.id..string.format("Clock %s = %d seconds", clock, seconds))
+  return seconds
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Route group to a certain point.
+-- @param #ARTY self
+-- @param Wrapper.Group#GROUP group Group to route.
+-- @param Core.Point#COORDINATE ToCoord Coordinate where we want to go.
+-- @param #number Speed Speed in km/h.
+-- @param #boolean OnRoad If true, use (mainly) roads.
+function ARTY:_Move(group, ToCoord, Speed, OnRoad)
+  
+  -- Clear all tasks.
+  group:ClearTasks()
+  group:OptionAlarmStateGreen()
+  group:OptionROEHoldFire()
+  
+  -- Set formation.
+  local formation = "Off road"
+  
+  -- Default speed is 30 km/h.
+  Speed=Speed or 30
+  
+  -- Current coordinates of group.
+  local cpini=group:GetCoordinate()
+  
+  -- Distance between current and final point. 
+  local dist=cpini:Get2DDistance(ToCoord)
+      
+  -- Waypoint and task arrays.
+  local path={}
+  local task={}
+
+  -- First waypoint is the current position of the group.
+  path[#path+1]=cpini:WaypointGround(Speed, formation)
+  task[#task+1]=group:TaskFunction("ARTY._PassingWaypoint", self, #path-1, false)
+
+  -- Route group on road if requested.
+  if OnRoad then
+
+    local _first=cpini:GetClosestPointToRoad()
+    local _last=ToCoord:GetClosestPointToRoad()
+    local _onroad=_first:GetPathOnRoad(_last)
+    
+    -- Points on road.
+    for i=1,#_onroad do
+      path[#path+1]=_onroad[i]:WaypointGround(Speed, "On road")
+      task[#task+1]=group:TaskFunction("ARTY._PassingWaypoint", self, #path-1, false)
+    end
+     
+  end
+  
+  -- Last waypoint at ToCoord.
+  path[#path+1]=ToCoord:WaypointGround(Speed, formation)
+  task[#task+1]=group:TaskFunction("ARTY._PassingWaypoint", self, #path-1, true)
+  
+  
+  -- Init waypoints of the group.
+  local Waypoints={}
+  
+  -- New points are added to the default route.
+  for i=1,#path do
+    table.insert(Waypoints, i, path[i])
+  end
+  
+  -- Set task for all waypoints.
+  for i=1,#Waypoints do
+    group:SetTaskWaypoint(Waypoints[i], task[i])
+  end
+  
+  -- Submit task and route group along waypoints.
+  group:Route(Waypoints)
+
+end
+
+--- Function called when group is passing a waypoint.
+-- @param Wrapper.Group#GROUP group Group for which waypoint passing should be monitored. 
+-- @param #ARTY arty ARTY object.
+-- @param #number i Waypoint number that has been reached.
+-- @param #boolean final True if it is the final waypoint.
+function ARTY._PassingWaypoint(group, arty, i, final)
+
+  -- Debug message.
+  local text=string.format("%s, passing waypoint %d.", group:GetName(), i)
+  if final then
+    text=string.format("%s, arrived at destination.", group:GetName())
+  end
+  arty:T(ARTY.id..text)
+  
+  --[[
+  if final then
+    MESSAGE:New(text, 10):ToCoalitionIf(group:GetCoalition(), arty.Debug or arty.report)
+  else
+    MESSAGE:New(text, 10):ToAllIf(arty.Debug)
+  end
+  ]]
+  
+  -- Arrived event.
+  if final and arty.Controllable:GetName()==group:GetName() then
+    arty:Arrived()
+  end
+
+end
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- **Functional** - (R2.4) Suppress fire of ground units when they get hit.
+-- 
+-- ![Banner Image](..\Presentations\SUPPRESSION\Suppression_Main.png)
+-- 
+-- ====
+-- 
+-- When ground units get hit by (suppressive) enemy fire, they will not be able to shoot back for a certain amount of time.
+-- 
+-- The implementation is based on an idea and script by MBot. See the [DCS forum threat](https://forums.eagle.ru/showthread.php?t=107635) for details.
+-- 
+-- In addition to suppressing the fire, conditions can be specified which let the group retreat to a defined zone, move away from the attacker
+-- or hide at a nearby scenery object.
+-- 
+-- ====
+-- 
+-- # Demo Missions
+--
+-- ### [MOOSE - ALL Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS)
+-- 
+-- ====
+-- 
+-- # YouTube Channel
+-- 
+-- ### [MOOSE YouTube Channel](https://www.youtube.com/channel/UCjrA9j5LQoWsG4SpS8i79Qg)
+-- 
+-- ===
+-- 
+-- ### Author: **[funkyfranky](https://forums.eagle.ru/member.php?u=115026)**
+-- 
+-- ### Contributions: [FlightControl](https://forums.eagle.ru/member.php?u=89536)
+-- 
+-- ====
+-- @module Suppression
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- SUPPRESSION class
+-- @type SUPPRESSION
+-- @field #string ClassName Name of the class.
+-- @field #boolean Debug Write Debug messages to DCS log file and send Debug messages to all players.
+-- @field #boolean flare Flare units when they get hit or die.
+-- @field #boolean smoke Smoke places to which the group retreats, falls back or hides.
+-- @field #list DCSdesc Table containing all DCS descriptors of the group.
+-- @field #string Type Type of the group.
+-- @field #number SpeedMax Maximum speed of group in km/h.
+-- @field #boolean IsInfantry True if group has attribute Infantry.
+-- @field Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the FSM. Must be a ground group.
+-- @field #number Tsuppress_ave Average time in seconds a group gets suppressed. Actual value is sampled randomly from a Gaussian distribution.
+-- @field #number Tsuppress_min Minimum time in seconds the group gets suppressed.
+-- @field #number Tsuppress_max Maximum time in seconds the group gets suppressed.
+-- @field #number TsuppressionOver Time at which the suppression will be over.
+-- @field #number IniGroupStrength Number of units in a group at start.
+-- @field #number Nhit Number of times the group was hit.
+-- @field #string Formation Formation which will be used when falling back, taking cover or retreating. Default "Vee".
+-- @field #number Speed Speed the unit will use when falling back, taking cover or retreating. Default 999.
+-- @field #boolean MenuON If true creates a entry in the F10 menu.
+-- @field #boolean FallbackON If true, group can fall back, i.e. move away from the attacking unit.
+-- @field #number FallbackWait Time in seconds the unit will wait at the fall back point before it resumes its mission.
+-- @field #number FallbackDist Distance in meters the unit will fall back.
+-- @field #number FallbackHeading Heading in degrees to which the group should fall back. Default is directly away from the attacking unit.
+-- @field #boolean TakecoverON If true, group can hide at a nearby scenery object.
+-- @field #number TakecoverWait Time in seconds the group will hide before it will resume its mission.
+-- @field #number TakecoverRange Range in which the group will search for scenery objects to hide at.
+-- @field Core.Point#COORDINATE hideout Coordinate/place where the group will try to take cover.
+-- @field #number PminFlee Minimum probability in percent that a group will flee (fall back or take cover) at each hit event. Default is 10 %.
+-- @field #number PmaxFlee Maximum probability in percent that a group will flee (fall back or take cover) at each hit event. Default is 90 %.
+-- @field Core.Zone#ZONE RetreatZone Zone to which a group retreats.
+-- @field #number RetreatDamage Damage in percent at which the group will be ordered to retreat.
+-- @field #number RetreatWait Time in seconds the group will wait in the retreat zone before it resumes its mission. Default two hours. 
+-- @field #string CurrentAlarmState Alam state the group is currently in.
+-- @field #string CurrentROE ROE the group currently has.
+-- @field #string DefaultAlarmState Alarm state the group will go to when it is changed back from another state. Default is "Auto".
+-- @field #string DefaultROE ROE the group will get once suppression is over. Default is "Free".
+-- @field #boolean eventmoose If true, events are handled by MOOSE. If false, events are handled directly by DCS eventhandler. Default true.
+-- @extends Core.Fsm#FSM_CONTROLLABLE
+-- 
+
+---# SUPPRESSION class, extends @{Core.Fsm#FSM_CONTROLLABLE}
+-- Mimic suppressive enemy fire and let groups flee or retreat.
+-- 
+-- ## Suppression Process
+-- 
+-- ![Process](..\Presentations\SUPPRESSION\Suppression_Process.png)
+-- 
+-- The suppression process can be described as follows.
+-- 
+-- ### CombatReady
+-- 
+-- A group starts in the state **CombatReady**. In this state the group is ready to fight. The ROE is set to either "Weapon Free" or "Return Fire".
+-- The alarm state is set to either "Auto" or "Red".
+-- 
+-- ### Event Hit
+-- The most important event in this scenario is the **Hit** event. This is an event of the FSM and triggered by the DCS event hit.
+-- 
+-- ### Suppressed
+-- After the **Hit** event the group changes its state to **Suppressed**. Technically, the ROE of the group is changed to "Weapon Hold".
+-- The suppression of the group will last a certain amount of time. It is randomized an will vary each time the group is hit.
+-- The expected suppression time is set to 15 seconds by default. But the actual value is sampled from a Gaussian distribution.
+--  
+-- ![Process](..\Presentations\SUPPRESSION\Suppression_Gaussian.png)
+-- 
+-- The graph shows the distribution of suppression times if a group would be hit 100,000 times. As can be seen, on most hits the group gets
+-- suppressed for around 15 seconds. Other values are also possible but they become less likely the further away from the "expected" suppression time they are.
+-- Minimal and maximal suppression times can also be specified. By default these are set to 5 and 25 seconds, respectively. This can also be seen in the graph
+-- because the tails of the Gaussian distribution are cut off at these values.
+-- 
+-- ### Event Recovered
+-- After the suppression time is over, the event **Recovered** is initiated and the group becomes **CombatReady** again.
+-- The ROE of the group will be set to "Weapon Free".
+-- 
+-- Of course, it can also happen that a group is hit again while it is still suppressed. In that case a new random suppression time is calculated.
+-- If the new suppression time is longer than the remaining suppression of the previous hit, then the group recovers when the suppression time of the last
+-- hit has passed.
+-- If the new suppression time is shorter than the remaining suppression, the group will recover after the longer time of the first suppression has passed.
+-- 
+-- For example:
+-- 
+-- * A group gets hit the first time and is suppressed for - let's say - 15 seconds.
+-- * After 10 seconds, i.e. when 5 seconds of the old suppression are left, the group gets hit a again.
+-- * A new suppression time is calculated which can be smaller or larger than the remaining 5 seconds.
+-- * If the new suppression time is smaller, e.g. three seconds, than five seconds, the group will recover after the 5 remaining seconds of the first suppression have passed.
+-- * If the new suppression time is longer than last suppression time, e.g. 10 seconds, then the group will recover after the 10 seconds of the new hit have passed.
+-- 
+-- Generally speaking, the suppression times are not just added on top of each other. Because this could easily lead to the situation that a group 
+-- never becomes CombatReady again before it gets destroyed.
+-- 
+-- The mission designer can capture the event **Recovered** by the function @{#SUPPRESSION.OnAfterRecovered}().
+-- 
+-- ## Flee Events and States
+-- Apart from being suppressed the groups can also flee from the enemy under certain conditions.
+-- 
+-- ### Event Retreat
+-- The first option is a retreat. This can be enabled by setting a retreat zone, i.e. a trigger zone defined in the mission editor.
+-- 
+-- If the group takes a certain amount of damage, the event **Retreat** will be called and the group will start to move to the retreat zone.
+-- The group will be in the state **Retreating**, which means that its ROE is set to "Weapon Hold" and the alarm state is set to "Green".
+-- Setting the alarm state to green is necessary to enable the group to move under fire.
+-- 
+-- When the group has reached the retreat zone, the event **Retreated** is triggered and the state will change to **Retreated** (note that both the event and
+-- the state of the same name in this case). ROE and alarm state are
+-- set to "Return Fire" and "Auto", respectively. The group will stay in the retreat zone and not actively participate in the combat any more.
+-- 
+-- If no option retreat zone has been specified, the option retreat is not available.
+-- 
+-- The mission designer can capture the events **Retreat** and **Retreated** by the functions @{#SUPPRESSION.OnAfterRetreat}() and @{#SUPPRESSION.OnAfterRetreated}().
+-- 
+-- ### Fallback
+-- 
+-- If a group is attacked by another ground group, it has the option to fall back, i.e. move away from the enemy. The probability of the event **FallBack** to
+-- happen depends on the damage of the group that was hit. The more a group gets damaged, the more likely **FallBack** event becomes.
+-- 
+-- If the group enters the state **FallingBack** it will move 100 meters in the opposite direction of the attacking unit. ROE and alarmstate are set to "Weapon Hold"
+-- and "Green", respectively.
+-- 
+-- At the fallback point the group will wait for 60 seconds before it resumes its normal mission.
+-- 
+-- The mission designer can capture the event **FallBack** by the function @{#SUPPRESSION.OnAfterFallBack}().
+-- 
+-- ### TakeCover
+-- 
+-- If a group is hit by either another ground or air unit, it has the option to "take cover" or "hide". This means that the group will move to a random
+-- scenery object in it vicinity.
+-- 
+-- Analogously to the fall back case, the probability of a **TakeCover** event to occur, depends on the damage of the group. The more a group is damaged, the more
+-- likely it becomes that a group takes cover.
+-- 
+-- When a **TakeCover** event occurs an area with a radius of 300 meters around the hit group is searched for an arbitrary scenery object.
+-- If at least one scenery object is found, the group will move there. One it has reached its "hideout", it will wait there for two minutes before it resumes its
+-- normal mission.
+-- 
+-- If more than one scenery object is found, the group will move to a random one.
+-- If no scenery object is near the group the **TakeCover** event is rejected and the group will not move.
+-- 
+-- The mission designer can capture the event **TakeCover** by the function @{#SUPPRESSION.OnAfterTakeCover}().
+-- 
+-- ### Choice of FallBack or TakeCover if both are enabled?
+-- 
+-- If both **FallBack** and **TakeCover** events are enabled by the functions @{#SUPPRESSION.Fallback}() and @{#SUPPRESSION.Takecover}() the algorithm does the following:
+-- 
+-- * If the attacking unit is a ground unit, then the **FallBack** event is executed.
+-- * Otherwise, i.e. if the attacker is *not* a ground unit, then the **TakeCover** event is triggered.
+-- 
+-- ### FightBack
+-- 
+-- When a group leaves the states **TakingCover** or **FallingBack** the event **FightBack** is triggered. This changes the ROE and the alarm state back to their default values.
+-- 
+-- The mission designer can capture the event **FightBack** by the function @{#SUPPRESSION.OnAfterFightBack}()
+-- 
+-- # Examples
+-- 
+-- ## Simple Suppression
+-- This example shows the basic steps to use suppressive fire for a group.
+-- 
+-- ![Process](..\Presentations\SUPPRESSION\Suppression_Example_01.png)
+-- 
+-- 
+-- # Customization and Fine Tuning
+-- The following user functions can be used to change the default values
+-- 
+-- * @{#SUPPRESSION.SetSuppressionTime}() can be used to set the time a goup gets suppressed.
+-- * @{#SUPPRESSION.SetRetreatZone}() sets the retreat zone and enables the possiblity for the group to retreat.
+-- * @{#SUPPRESSION.SetFallbackDistance}() sets a value how far the unit moves away from the attacker after the fallback event.
+-- * @{#SUPPRESSION.SetFallbackWait}() sets the time after which the group resumes its mission after a FallBack event.
+-- * @{#SUPPRESSION.SetTakecoverWait}() sets the time after which the group resumes its mission after a TakeCover event.
+-- * @{#SUPPRESSION.SetTakecoverRange}() sets the radius in which hideouts are searched.
+-- * @{#SUPPRESSION.SetTakecoverPlace}() explicitly sets the place where the group will run at a TakeCover event.
+-- * @{#SUPPRESSION.SetMinimumFleeProbability}() sets the minimum probability that a group flees (FallBack or TakeCover) after a hit. Note taht the probability increases with damage.
+-- * @{#SUPPRESSION.SetMaximumFleeProbability}() sets the maximum probability that a group flees (FallBack or TakeCover) after a hit. Default is 90%.
+-- * @{#SUPPRESSION.SetRetreatDamage}() sets the damage a group/unit can take before it is ordered to retreat.
+-- * @{#SUPPRESSION.SetRetreatWait}() sets the time a group waits in the retreat zone after a retreat.
+-- * @{#SUPPRESSION.SetDefaultAlarmState}() sets the alarm state a group gets after it becomes CombatReady again.
+-- * @{#SUPPRESSION.SetDefaultROE}() set the rules of engagement a group gets after it becomes CombatReady again.
+-- * @{#SUPPRESSION.FlareOn}() is mainly for debugging. A flare is fired when a unit is hit, gets suppressed, recovers, dies.
+-- * @{#SUPPRESSION.SmokeOn}() is mainly for debugging. Puts smoke on retreat zone, hideouts etc.
+-- * @{#SUPPRESSION.MenuON}() is mainly for debugging. Activates a radio menu item where certain functions like retreat etc. can be triggered manually.
+-- 
+-- 
+-- @field #SUPPRESSION
+SUPPRESSION={
+  ClassName = "SUPPRESSION",
+  Debug = false,
+  flare = false,
+  smoke = false,
+  DCSdesc = nil,
+  Type = nil,
+  IsInfantry=nil,
+  SpeedMax = nil,
+  Tsuppress_ave = 15,
+  Tsuppress_min = 5,
+  Tsuppress_max = 25,
+  TsuppressOver = nil,
+  IniGroupStrength = nil,
+  Nhit = 0,
+  Formation = "Off road",
+  Speed = 4,
+  MenuON = false,
+  FallbackON = false,
+  FallbackWait = 60,
+  FallbackDist = 100,
+  FallbackHeading = nil,
+  TakecoverON = false,
+  TakecoverWait = 120,
+  TakecoverRange = 300,
+  hideout = nil,
+  PminFlee = 10,
+  PmaxFlee = 90,
+  RetreatZone = nil,
+  RetreatDamage = nil,
+  RetreatWait = 7200,
+  CurrentAlarmState = "unknown",
+  CurrentROE = "unknown",
+  DefaultAlarmState = "Auto",
+  DefaultROE = "Weapon Free",
+  eventmoose = true,
+}
+
+--- Enumerator of possible rules of engagement.
+-- @field #list ROE
+SUPPRESSION.ROE={
+  Hold="Weapon Hold",
+  Free="Weapon Free",
+  Return="Return Fire",  
+}
+
+--- Enumerator of possible alarm states.
+-- @field #list AlarmState
+SUPPRESSION.AlarmState={
+  Auto="Auto",
+  Green="Green",
+  Red="Red",
+}
+
+--- Main F10 menu for suppresion, i.e. F10/Suppression.
+-- @field #string MenuF10
+SUPPRESSION.MenuF10=nil
+
+--- Some ID to identify who we are in output of the DCS.log file.
+-- @field #string id
+SUPPRESSION.id="SUPPRESSION | "
+
+--- PSEUDOATC version.
+-- @field #number version
+SUPPRESSION.version="0.9.0"
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--TODO list
+--DONE: Figure out who was shooting and move away from him.
+--DONE: Move behind a scenery building if there is one nearby.
+--DONE: Retreat to a given zone or point.
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Creates a new AI_suppression object.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Group#GROUP group The GROUP object for which suppression should be applied.
+-- @return #SUPPRESSION SUPPRESSION object.
+-- @return nil If group does not exist or is not a ground group.
+function SUPPRESSION:New(group)
+  BASE:F2(group)
+
+  -- Inherits from FSM_CONTROLLABLE
+  local self=BASE:Inherit(self, FSM_CONTROLLABLE:New()) -- #SUPPRESSION
+  
+  -- Check that group is present.
+  if group then
+    self:T(SUPPRESSION.id..string.format("SUPPRESSION version %s. Activating suppressive fire for group %s", SUPPRESSION.version, group:GetName()))
+  else
+    self:E(SUPPRESSION.id.."Suppressive fire: Requested group does not exist! (Has to be a MOOSE group.)")
+    return nil
+  end
+  
+  -- Check that we actually have a GROUND group.
+  if group:IsGround()==false then
+    self:E(SUPPRESSION.id..string.format("SUPPRESSION fire group %s has to be a GROUND group!", group:GetName()))
+    return nil
+  end  
+  
+  -- Set the controllable for the FSM.
+  self:SetControllable(group)
+  
+  -- Get DCS descriptors of group.
+  local DCSgroup=Group.getByName(group:GetName())
+  local DCSunit=DCSgroup:getUnit(1)
+  self.DCSdesc=DCSunit:getDesc()
+  
+  -- Get max speed the group can do and convert to km/h.
+  self.SpeedMax=self.DCSdesc.speedMaxOffRoad*3.6
+  
+  -- Set speed to maximum.
+  self.Speed=self.SpeedMax
+  
+  -- Is this infantry or not.
+  self.IsInfantry=DCSunit:hasAttribute("Infantry")
+  
+  -- Type of group.
+  self.Type=group:GetTypeName()
+  
+  -- Initial group strength.
+  self.IniGroupStrength=#group:GetUnits()
+  
+  -- Set ROE and Alarm State.
+  self:SetDefaultROE("Free")
+  self:SetDefaultAlarmState("Auto")
+  
+  -- Transitions 
+  self:AddTransition("*",           "Start",     "CombatReady")
+  self:AddTransition("CombatReady", "Hit",       "Suppressed")
+  self:AddTransition("Suppressed",  "Hit",       "Suppressed") 
+  self:AddTransition("Suppressed",  "Recovered", "CombatReady")
+  self:AddTransition("Suppressed",  "TakeCover", "TakingCover")
+  self:AddTransition("Suppressed",  "FallBack",  "FallingBack")
+  self:AddTransition("*",           "Retreat",   "Retreating")
+  self:AddTransition("TakingCover", "FightBack", "CombatReady")
+  self:AddTransition("FallingBack", "FightBack", "CombatReady")
+  self:AddTransition("Retreating",  "Retreated", "Retreated")
+  self:AddTransition("*",           "Dead",      "*")
+  
+  self:AddTransition("TakingCover", "Hit",       "TakingCover")
+  self:AddTransition("FallingBack", "Hit",       "FallingBack")
+
+  --- User function for OnBefore "Hit" event.
+  -- @function [parent=#SUPPRESSION] OnBeforeHit
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @param Wrapper.Unit#UNIT Unit Unit that was hit.
+  -- @param Wrapper.Unit#UNIT AttackUnit Unit that attacked.
+  -- @return #boolean
+
+  --- User function for OnAfer "Hit" event.
+  -- @function [parent=#SUPPRESSION] OnAfterHit
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @param Wrapper.Unit#UNIT Unit Unit that was hit.
+  -- @param Wrapper.Unit#UNIT AttackUnit Unit that attacked.
+  
+
+  --- User function for OnBefore "Recovered" event.
+  -- @function [parent=#SUPPRESSION] OnBeforeRecovered
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @return #boolean  
+
+  --- User function for OnAfter "Recovered" event.
+  -- @function [parent=#SUPPRESSION] OnAfterRecovered
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+
+
+  --- User function for OnBefore "TakeCover" event.
+  -- @function [parent=#SUPPRESSION] OnBeforeTakeCover
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @param Core.Point#COORDINATE Hideout Place where the group will hide.
+  -- @return #boolean
+
+  --- User function for OnAfter "TakeCover" event.
+  -- @function [parent=#SUPPRESSION] OnAfterTakeCover
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @param Core.Point#COORDINATE Hideout Place where the group will hide.
+
+
+  --- User function for OnBefore "FallBack" event.
+  -- @function [parent=#SUPPRESSION] OnBeforeFallBack
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @param Wrapper.Unit#UNIT AttackUnit Attacking unit. We will move away from this.
+  -- @return #boolean
+
+  --- User function for OnAfter "FallBack" event.
+  -- @function [parent=#SUPPRESSION] OnAfterFallBack
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @param Wrapper.Unit#UNIT AttackUnit Attacking unit. We will move away from this.
+
+
+  --- User function for OnBefore "Retreat" event.
+  -- @function [parent=#SUPPRESSION] OnBeforeRetreat
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @return #boolean
+  
+  --- User function for OnAfter "Retreat" event.
+  -- @function [parent=#SUPPRESSION] OnAfterRetreat
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+
+
+  --- User function for OnBefore "Retreated" event.
+  -- @function [parent=#SUPPRESSION] OnBeforeRetreated
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @return #boolean
+  
+  --- User function for OnAfter "Retreated" event.
+  -- @function [parent=#SUPPRESSION] OnAfterRetreated
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+
+
+  --- User function for OnBefore "FlightBack" event.
+  -- @function [parent=#SUPPRESSION] OnBeforeFightBack
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+  -- @return #boolean
+  
+  --- User function for OnAfter "FlightBack" event.
+  -- @function [parent=#SUPPRESSION] OnAfterFightBack
+  -- @param #SUPPRESSION self
+  -- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+  -- @param #string From From state.
+  -- @param #string Event Event.
+  -- @param #string To To state.
+
+
+  return self
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Set average, minimum and maximum time a unit is suppressed each time it gets hit.
+-- @param #SUPPRESSION self
+-- @param #number Tave Average time [seconds] a group will be suppressed. Default is 15 seconds.
+-- @param #number Tmin (Optional) Minimum time [seconds] a group will be suppressed. Default is 5 seconds.
+-- @param #number Tmax (Optional) Maximum time a group will be suppressed. Default is 25 seconds.
+function SUPPRESSION:SetSuppressionTime(Tave, Tmin, Tmax)
+  self:F({Tave=Tave, Tmin=Tmin, Tmax=Tmax})
+
+  -- Minimum suppression time is input or default but at least 1 second.
+  self.Tsuppress_min=Tmin or self.Tsuppress_min
+  self.Tsuppress_min=math.max(self.Tsuppress_min, 1)
+  
+  -- Maximum suppression time is input or dault but at least Tmin.
+  self.Tsuppress_max=Tmax or self.Tsuppress_max
+  self.Tsuppress_max=math.max(self.Tsuppress_max, self.Tsuppress_min)
+  
+  -- Expected suppression time is input or default but at leat Tmin and at most Tmax.
+  self.Tsuppress_ave=Tave or self.Tsuppress_ave
+  self.Tsuppress_ave=math.max(self.Tsuppress_min)
+  self.Tsuppress_ave=math.min(self.Tsuppress_max)
+  
+  self:T(SUPPRESSION.id..string.format("Set ave suppression time to %d seconds.", self.Tsuppress_ave))
+  self:T(SUPPRESSION.id..string.format("Set min suppression time to %d seconds.", self.Tsuppress_min))
+  self:T(SUPPRESSION.id..string.format("Set max suppression time to %d seconds.", self.Tsuppress_max))
+end
+
+--- Set the zone to which a group retreats after being damaged too much.
+-- @param #SUPPRESSION self
+-- @param Core.Zone#ZONE zone MOOSE zone object.
+function SUPPRESSION:SetRetreatZone(zone)
+  self:F({zone=zone})
+  self.RetreatZone=zone
+end
+
+--- Turn Debug mode on. Enables messages and more output to DCS log file.
+-- @param #SUPPRESSION self
+function SUPPRESSION:DebugOn()
+  self:F()
+  self.Debug=true
+end
+
+--- Flare units when they are hit, die or recover from suppression.
+-- @param #SUPPRESSION self
+function SUPPRESSION:FlareOn()
+  self:F()
+  self.flare=true
+end
+
+--- Smoke positions where units fall back to, hide or retreat.
+-- @param #SUPPRESSION self
+function SUPPRESSION:SmokeOn()
+  self:F()
+  self.smoke=true
+end
+
+--- Set the formation a group uses for fall back, hide or retreat.
+-- @param #SUPPRESSION self
+-- @param #string formation Formation of the group. Default "Vee".
+function SUPPRESSION:SetFormation(formation)
+  self:F(formation)
+  self.Formation=formation or "Vee"
+end
+
+--- Set speed a group moves at for fall back, hide or retreat.
+-- @param #SUPPRESSION self
+-- @param #number speed Speed in km/h of group. Default max speed the group can do.
+function SUPPRESSION:SetSpeed(speed)
+  self:F(speed)
+  self.Speed=speed or self.SpeedMax
+  self.Speed=math.min(self.Speed, self.SpeedMax)
+end
+
+--- Enable fall back if a group is hit.
+-- @param #SUPPRESSION self
+-- @param #boolean switch Enable=true or disable=false fall back of group.
+function SUPPRESSION:Fallback(switch)
+  self:F(switch)
+  if switch==nil then
+    switch=true
+  end
+  self.FallbackON=switch
+end
+
+--- Set distance a group will fall back when it gets hit.
+-- @param #SUPPRESSION self
+-- @param #number distance Distance in meters.
+function SUPPRESSION:SetFallbackDistance(distance)
+  self:F(distance)
+  self.FallbackDist=distance
+end
+
+--- Set time a group waits at its fall back position before it resumes its normal mission.
+-- @param #SUPPRESSION self
+-- @param #number time Time in seconds.
+function SUPPRESSION:SetFallbackWait(time)
+  self:F(time)
+  self.FallbackWait=time
+end
+
+--- Enable take cover option if a unit is hit.
+-- @param #SUPPRESSION self
+-- @param #boolean switch Enable=true or disable=false fall back of group.
+function SUPPRESSION:Takecover(switch)
+  self:F(switch)
+  if switch==nil then
+    switch=true
+  end
+  self.TakecoverON=switch
+end
+
+--- Set time a group waits at its hideout position before it resumes its normal mission.
+-- @param #SUPPRESSION self
+-- @param #number time Time in seconds.
+function SUPPRESSION:SetTakecoverWait(time)
+  self:F(time)
+  self.TakecoverWait=time
+end
+
+--- Set distance a group searches for hideout places.
+-- @param #SUPPRESSION self
+-- @param #number range Search range in meters.
+function SUPPRESSION:SetTakecoverRange(range)
+  self:F(range)
+  self.TakecoverRange=range
+end
+
+--- Set hideout place explicitly.
+-- @param #SUPPRESSION self
+-- @param Core.Point#COORDINATE Hideout Place where the group will hide after the TakeCover event.
+function SUPPRESSION:SetTakecoverPlace(Hideout)
+  self.hideout=Hideout
+end
+
+--- Set minimum probability that a group flees (falls back or takes cover) after a hit event. Default is 10%.
+-- @param #SUPPRESSION self
+-- @param #number probability Probability in percent.
+function SUPPRESSION:SetMinimumFleeProbability(probability)
+  self:F(probability)
+  self.PminFlee=probability or 10
+end
+
+--- Set maximum probability that a group flees (falls back or takes cover) after a hit event. Default is 90%.
+-- @param #SUPPRESSION self
+-- @param #number probability Probability in percent.
+function SUPPRESSION:SetMaximumFleeProbability(probability)
+  self:F(probability)
+  self.PmaxFlee=probability or 90
+end
+
+--- Set damage threshold before a group is ordered to retreat if a retreat zone was defined.
+-- If the group consists of only a singe unit, this referrs to the life of the unit.
+-- If the group consists of more than one unit, this referrs to the group strength relative to its initial strength.
+-- @param #SUPPRESSION self
+-- @param #number damage Damage in percent. If group gets damaged above this value, the group will retreat. Default 50 %.
+function SUPPRESSION:SetRetreatDamage(damage)
+  self:F(damage)
+  self.RetreatDamage=damage or 50
+end
+
+--- Set time a group waits in the retreat zone before it resumes its mission. Default is two hours.
+-- @param #SUPPRESSION self
+-- @param #number time Time in seconds. Default 7200 seconds = 2 hours.
+function SUPPRESSION:SetRetreatWait(time)
+  self:F(time)
+  self.RetreatWait=time or 7200
+end
+
+--- Set alarm state a group will get after it returns from a fall back or take cover.
+-- @param #SUPPRESSION self
+-- @param #string alarmstate Alarm state. Possible "Auto", "Green", "Red". Default is "Auto".
+function SUPPRESSION:SetDefaultAlarmState(alarmstate)
+  self:F(alarmstate)
+  if alarmstate:lower()=="auto" then
+    self.DefaultAlarmState=SUPPRESSION.AlarmState.Auto
+  elseif alarmstate:lower()=="green" then
+    self.DefaultAlarmState=SUPPRESSION.AlarmState.Green
+  elseif alarmstate:lower()=="red" then
+    self.DefaultAlarmState=SUPPRESSION.AlarmState.Red
+  else
+    self.DefaultAlarmState=SUPPRESSION.AlarmState.Auto
+  end
+end
+
+--- Set Rules of Engagement (ROE) a group will get when it recovers from suppression.
+-- @param #SUPPRESSION self
+-- @param #string roe ROE after suppression. Possible "Free", "Hold" or "Return". Default "Free".
+function SUPPRESSION:SetDefaultROE(roe)
+  self:F(roe)
+  if roe:lower()=="free" then
+    self.DefaultROE=SUPPRESSION.ROE.Free
+  elseif roe:lower()=="hold" then
+    self.DefaultROE=SUPPRESSION.ROE.Hold
+  elseif roe:lower()=="return" then
+    self.DefaultROE=SUPPRESSION.ROE.Return
+  else
+    self.DefaultROE=SUPPRESSION.ROE.Free
+  end
+end
+
+--- Create an F10 menu entry for the suppressed group. The menu is mainly for Debugging purposes.
+-- @param #SUPPRESSION self
+-- @param #boolean switch Enable=true or disable=false menu group. Default is true.
+function SUPPRESSION:MenuOn(switch)
+  self:F(switch)
+  if switch==nil then
+    switch=true
+  end
+  self.MenuON=switch
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Create F10 main menu, i.e. F10/Suppression. The menu is mainly for Debugging purposes.
+-- @param #SUPPRESSION self
+function SUPPRESSION:_CreateMenuGroup()
+  local SubMenuName=self.Controllable:GetName()
+  local MenuGroup=MENU_MISSION:New(SubMenuName, SUPPRESSION.MenuF10)
+  MENU_MISSION_COMMAND:New("Fallback!", MenuGroup, self.OrderFallBack, self)
+  MENU_MISSION_COMMAND:New("Take Cover!", MenuGroup, self.OrderTakeCover, self)
+  MENU_MISSION_COMMAND:New("Retreat!", MenuGroup, self.OrderRetreat, self)
+  MENU_MISSION_COMMAND:New("Report Status", MenuGroup, self.Status, self, true)
+end
+
+--- Order group to fall back between 100 and 150 meters in a random direction.
+-- @param #SUPPRESSION self
+function SUPPRESSION:OrderFallBack()
+  local group=self.Controllable --Wrapper.Controllable#CONTROLLABLE
+  local vicinity=group:GetCoordinate():GetRandomVec2InRadius(150, 100)
+  local coord=COORDINATE:NewFromVec2(vicinity)
+  self:FallBack(self.Controllable)
+end
+
+--- Order group to take cover at a nearby scenery object.
+-- @param #SUPPRESSION self
+function SUPPRESSION:OrderTakeCover()
+  -- Search place to hide or take specified one.
+  local Hideout=self.hideout
+  if self.hideout==nil then
+    Hideout=self:_SearchHideout()
+  end      
+  -- Trigger TakeCover event.
+  self:TakeCover(Hideout)
+end
+
+--- Order group to retreat to a pre-defined zone.
+-- @param #SUPPRESSION self
+function SUPPRESSION:OrderRetreat()
+  self:Retreat()
+end
+
+--- Status of group. Current ROE, alarm state, life.
+-- @param #SUPPRESSION self
+-- @param #boolean message Send message to all players.
+function SUPPRESSION:Status(message)
+
+  local name=self.Controllable:GetName()
+  local nunits=#self.Controllable:GetUnits()
+  local roe=self.CurrentROE
+  local state=self.CurrentAlarmState
+  local life_min, life_max, life_ave, life_ave0, groupstrength=self:_GetLife()
+  
+  local text=string.format("Status of group %s\n", name)
+  text=text..string.format("Number of units: %d of %d\n", nunits, self.IniGroupStrength)
+  text=text..string.format("Current state: %s\n", self:GetState())
+  text=text..string.format("ROE: %s\n", roe)  
+  text=text..string.format("Alarm state: %s\n", state)
+  text=text..string.format("Hits taken: %d\n", self.Nhit)
+  text=text..string.format("Life min: %3.0f\n", life_min)
+  text=text..string.format("Life max: %3.0f\n", life_max)
+  text=text..string.format("Life ave: %3.0f\n", life_ave)
+  text=text..string.format("Life ave0: %3.0f\n", life_ave0)
+  text=text..string.format("Group strength: %3.0f", groupstrength)
+  
+  MESSAGE:New(text, 10):ToAllIf(message or self.Debug)
+  self:T(SUPPRESSION.id.."\n"..text)
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "Start" event. Initialized ROE and alarm state. Starts the event handler.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function SUPPRESSION:onafterStart(Controllable, From, Event, To)
+  self:_EventFromTo("onafterStart", Event, From, To)
+  
+  local text=string.format("Started SUPPRESSION for group %s.", Controllable:GetName())
+  MESSAGE:New(text, 10):ToAllIf(self.Debug)
+  
+  local rzone="not defined"
+  if self.RetreatZone then
+    rzone=self.RetreatZone:GetName()
+  end
+  
+  -- Set retreat damage value if it was not set by user input.
+  if self.RetreatDamage==nil then
+    if self.RetreatZone then
+      if self.IniGroupStrength==1 then
+        self.RetreatDamage=60.0  -- 40% of life is left.
+      elseif self.IniGroupStrength==2 then
+        self.RetreatDamage=50.0  -- 50% of group left, i.e. 1 of 2. We already order a retreat, because if for a group 2 two a zone is defined it would not be used at all.
+      else
+        self.RetreatDamage=66.5  -- 34% of the group is left, e.g. 1 of 3,4 or 5, 2 of 6,7 or 8, 3 of 9,10 or 11, 4/12, 4/13, 4/14, 5/15, ... 
+      end
+    else
+      self.RetreatDamage=100   -- If no retreat then this should be set to 100%.
+    end
+  end
+  
+  -- Create main F10 menu if it is not there yet.
+  if self.MenuON then 
+    if not SUPPRESSION.MenuF10 then
+      SUPPRESSION.MenuF10 = MENU_MISSION:New("Suppression")
+    end
+    self:_CreateMenuGroup()
+  end
+    
+  -- Set the current ROE and alam state.
+  self:_SetAlarmState(self.DefaultAlarmState)
+  self:_SetROE(self.DefaultROE)
+  
+  local text=string.format("\n******************************************************\n")
+  text=text..string.format("Suppressed group   = %s\n", Controllable:GetName())
+  text=text..string.format("Type               = %s\n", self.Type)
+  text=text..string.format("IsInfantry         = %s\n", tostring(self.IsInfantry))  
+  text=text..string.format("Group strength     = %d\n", self.IniGroupStrength)
+  text=text..string.format("Average time       = %5.1f seconds\n", self.Tsuppress_ave)
+  text=text..string.format("Minimum time       = %5.1f seconds\n", self.Tsuppress_min)
+  text=text..string.format("Maximum time       = %5.1f seconds\n", self.Tsuppress_max)
+  text=text..string.format("Default ROE        = %s\n", self.DefaultROE)
+  text=text..string.format("Default AlarmState = %s\n", self.DefaultAlarmState)
+  text=text..string.format("Fall back ON       = %s\n", tostring(self.FallbackON))
+  text=text..string.format("Fall back distance = %5.1f m\n", self.FallbackDist)
+  text=text..string.format("Fall back wait     = %5.1f seconds\n", self.FallbackWait)
+  text=text..string.format("Fall back heading  = %s degrees\n", tostring(self.FallbackHeading))
+  text=text..string.format("Take cover ON      = %s\n", tostring(self.TakecoverON))
+  text=text..string.format("Take cover search  = %5.1f m\n", self.TakecoverRange)
+  text=text..string.format("Take cover wait    = %5.1f seconds\n", self.TakecoverWait)  
+  text=text..string.format("Min flee probability = %5.1f\n", self.PminFlee)  
+  text=text..string.format("Max flee probability = %5.1f\n", self.PmaxFlee)
+  text=text..string.format("Retreat zone       = %s\n", rzone)
+  text=text..string.format("Retreat damage     = %5.1f %%\n", self.RetreatDamage)
+  text=text..string.format("Retreat wait       = %5.1f seconds\n", self.RetreatWait)
+  text=text..string.format("Speed              = %5.1f km/h\n", self.Speed)
+  text=text..string.format("Speed max          = %5.1f km/h\n", self.SpeedMax)
+  text=text..string.format("Formation          = %s\n", self.Formation)
+  text=text..string.format("******************************************************\n")
+  self:T(SUPPRESSION.id..text)
+    
+  -- Add event handler.
+  if self.eventmoose then
+    self:HandleEvent(EVENTS.Hit,  self._OnEventHit)
+    self:HandleEvent(EVENTS.Dead, self._OnEventDead)
+  else
+    world.addEventHandler(self)
+  end
+
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "Hit" event. (Of course, this is not really before the group got hit.)
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param Wrapper.Unit#UNIT Unit Unit that was hit.
+-- @param Wrapper.Unit#UNIT AttackUnit Unit that attacked.
+-- @return boolean
+function SUPPRESSION:onbeforeHit(Controllable, From, Event, To, Unit, AttackUnit)
+  self:_EventFromTo("onbeforeHit", Event, From, To)
+  
+  --local Tnow=timer.getTime()
+  --env.info(SUPPRESSION.id..string.format("Last hit = %s  %s", tostring(self.LastHit), tostring(Tnow)))
+  
+  return true
+end
+
+--- After "Hit" event.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param Wrapper.Unit#UNIT Unit Unit that was hit.
+-- @param Wrapper.Unit#UNIT AttackUnit Unit that attacked.
+function SUPPRESSION:onafterHit(Controllable, From, Event, To, Unit, AttackUnit)
+  self:_EventFromTo("onafterHit", Event, From, To)
+    
+  -- Suppress unit.
+  if From=="CombatReady" or From=="Suppressed" then
+    self:_Suppress()
+  end
+  
+  -- Get life of group in %.
+  local life_min, life_max, life_ave, life_ave0, groupstrength=self:_GetLife()
+  
+  -- Damage in %. If group consists only of one unit, we take its life value.
+  local Damage=100-life_ave0
+  
+  -- Condition for retreat.
+  local RetreatCondition = Damage >= self.RetreatDamage-0.01 and self.RetreatZone
+    
+  -- Probability that a unit flees. The probability increases linearly with the damage of the group/unit.
+  -- If Damage=0             ==> P=Pmin
+  -- if Damage=RetreatDamage ==> P=Pmax
+  -- If no retreat zone has been specified, RetreatDamage is 100.
+  local Pflee=(self.PmaxFlee-self.PminFlee)/self.RetreatDamage * math.min(Damage, self.RetreatDamage) + self.PminFlee
+  
+  -- Evaluate flee condition.
+  local P=math.random(0,100)
+  local FleeCondition =  P < Pflee
+  
+  local text
+  text=string.format("\nGroup %s: Life min=%5.1f, max=%5.1f, ave=%5.1f, ave0=%5.1f group=%5.1f\n", Controllable:GetName(), life_min, life_max, life_ave, life_ave0, groupstrength)
+  text=string.format("Group %s: Damage = %8.4f (%8.4f retreat threshold).\n", Controllable:GetName(), Damage, self.RetreatDamage)
+  text=string.format("Group %s: P_Flee = %5.1f %5.1f=P_rand (P_Flee > Prand ==> Flee)\n", Controllable:GetName(), Pflee, P)
+  self:T(SUPPRESSION.id..text)
+  
+  -- Group is obviously destroyed.
+  if Damage >= 99.9 then
+    return
+  end
+  
+  if RetreatCondition then
+  
+    -- Trigger Retreat event.
+    self:Retreat()
+    
+  elseif FleeCondition then
+  
+    if self.FallbackON and AttackUnit:IsGround() then
+    
+      -- Trigger FallBack event.
+      self:FallBack(AttackUnit)
+      
+    elseif self.TakecoverON then
+    
+      -- Search place to hide or take specified one.
+      local Hideout=self.hideout
+      if self.hideout==nil then
+        Hideout=self:_SearchHideout()
+      end
+      
+      -- Trigger TakeCover event.
+      self:TakeCover(Hideout)
+    end
+  end
+  
+  -- Give info on current status.
+  if self.Debug then
+    self:Status()
+  end
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "Recovered" event. Check if suppression time is over.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @return #boolean
+function SUPPRESSION:onbeforeRecovered(Controllable, From, Event, To)
+  self:_EventFromTo("onbeforeRecovered", Event, From, To)
+  
+  -- Current time.
+  local Tnow=timer.getTime()
+  
+  -- Debug info
+  self:T(SUPPRESSION.id..string.format("onbeforeRecovered: Time now: %d  - Time over: %d", Tnow, self.TsuppressionOver))
+  
+  -- Recovery is only possible if enough time since the last hit has passed.
+  if Tnow >= self.TsuppressionOver then
+    return true
+  else
+    return false
+  end
+  
+end
+
+--- After "Recovered" event. Group has recovered and its ROE is set back to the "normal" unsuppressed state. Optionally the group is flared green.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function SUPPRESSION:onafterRecovered(Controllable, From, Event, To)
+  self:_EventFromTo("onafterRecovered", Event, From, To)
+  
+  if Controllable and Controllable:IsAlive() then
+  
+    -- Debug message.
+    local text=string.format("Group %s has recovered!", Controllable:GetName())
+    MESSAGE:New(text, 10):ToAllIf(self.Debug)
+    self:T(SUPPRESSION.id..text)
+    
+    -- Set ROE back to default.
+    self:_SetROE()
+    
+    -- Flare unit green.
+    if self.flare or self.Debug then
+      Controllable:FlareGreen()
+    end
+    
+  end
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "FightBack" event. ROE and Alarm state are set back to default.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function SUPPRESSION:onafterFightBack(Controllable, From, Event, To)
+  self:_EventFromTo("onafterFightBack", Event, From, To)
+  
+  -- Set ROE and alarm state back to default.
+  self:_SetROE()
+  self:_SetAlarmState()
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "FallBack" event. We check that group is not already falling back.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param Wrapper.Unit#UNIT AttackUnit Attacking unit. We will move away from this.
+-- @return #boolean
+function SUPPRESSION:onbeforeFallBack(Controllable, From, Event, To, AttackUnit)
+  self:_EventFromTo("onbeforeFallBack", Event, From, To)
+  
+  --TODO: Add retreat? Only allowd transition is Suppressed-->Fallback. So in principle no need.
+  if From == "FallingBack" then
+    return false
+  else
+    return true
+  end
+end
+
+--- After "FallBack" event. We get the heading away from the attacker and route the group a certain distance in that direction.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param Wrapper.Unit#UNIT AttackUnit Attacking unit. We will move away from this.
+function SUPPRESSION:onafterFallBack(Controllable, From, Event, To, AttackUnit)
+  self:_EventFromTo("onafterFallback", Event, From, To)
+  
+  -- Debug info
+  self:T(SUPPRESSION.id..string.format("Group %s is falling back after %d hits.", Controllable:GetName(), self.Nhit))
+  
+  -- Coordinate of the attacker and attacked unit.
+  local ACoord=AttackUnit:GetCoordinate()
+  local DCoord=Controllable:GetCoordinate()
+  
+  -- Heading from attacker to attacked unit.
+  local heading=self:_Heading(ACoord, DCoord)
+  
+  -- Overwrite heading with user specified heading.
+  if self.FallbackHeading then
+    heading=self.FallbackHeading
+  end
+  
+  -- Create a coordinate ~ 100 m in opposite direction of the attacking unit.
+  local Coord=DCoord:Translate(self.FallbackDist, heading)
+  
+  -- Place marker
+  if self.Debug then
+    local MarkerID=Coord:MarkToAll("Fall back position for group "..Controllable:GetName())
+  end
+  
+  -- Smoke the coordinate.
+  if self.smoke or self.Debug then
+    Coord:SmokeBlue()
+  end
+  
+  -- Set ROE to weapon hold.
+  self:_SetROE(SUPPRESSION.ROE.Hold)
+  
+  -- Set alarm state to GREEN and let the unit run away.
+  self:_SetAlarmState(SUPPRESSION.AlarmState.Green)
+
+  -- Make the group run away.
+  self:_Run(Coord, self.Speed, self.Formation, self.FallbackWait)
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "TakeCover" event. Search an area around the group for possible scenery objects where the group can hide.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param Core.Point#COORDINATE Hideout Place where the group will hide.
+-- @return #boolean
+function SUPPRESSION:onbeforeTakeCover(Controllable, From, Event, To, Hideout)
+  self:_EventFromTo("onbeforeTakeCover", Event, From, To)
+  
+  --TODO: Need to test this!
+  if From=="TakingCover" then
+    return false
+  end
+  
+  -- Block transition if no hideout place is given.
+  if Hideout ~= nil then
+    return true
+  else
+    return false
+  end
+
+end
+
+--- After "TakeCover" event. Group will run to a nearby scenery object and "hide" there for a certain time.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @param Core.Point#COORDINATE Hideout Place where the group will hide.
+function SUPPRESSION:onafterTakeCover(Controllable, From, Event, To, Hideout)
+  self:_EventFromTo("onafterTakeCover", Event, From, To)
+     
+  if self.Debug then
+    local MarkerID=Hideout:MarkToAll(string.format("Hideout for group %s", Controllable:GetName()))
+  end
+  
+  -- Smoke place of hideout.
+  if self.smoke or self.Debug then
+    Hideout:SmokeBlue()
+  end
+  
+  -- Set ROE to weapon hold.
+  self:_SetROE(SUPPRESSION.ROE.Hold)
+  
+  -- Set the ALARM STATE to GREEN. Then the unit will move even if it is under fire.
+  self:_SetAlarmState(SUPPRESSION.AlarmState.Green)
+  
+  -- Make the group run away.
+  self:_Run(Hideout, self.Speed, self.Formation, self.TakecoverWait)
+    
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "Retreat" event. We check that the group is not already retreating.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+-- @return #boolean True if transition is allowed, False if transition is forbidden.
+function SUPPRESSION:onbeforeRetreat(Controllable, From, Event, To)
+  self:_EventFromTo("onbeforeRetreat", Event, From, To)
+  
+  if From=="Retreating" then
+    local text=string.format("Group %s is already retreating.")
+    self:T2(SUPPRESSION.id..text)
+    return false
+  else
+    return true
+  end
+  
+end
+
+--- After "Retreat" event. Find a random point in the retreat zone and route the group there.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function SUPPRESSION:onafterRetreat(Controllable, From, Event, To)
+  self:_EventFromTo("onafterRetreat", Event, From, To)
+  
+  -- Route the group to a zone.
+  local text=string.format("Group %s is retreating! Alarm state green.", Controllable:GetName())
+  MESSAGE:New(text, 10):ToAllIf(self.Debug)
+  self:T(SUPPRESSION.id..text)
+  
+  -- Get a random point in the retreat zone.
+  local ZoneCoord=self.RetreatZone:GetRandomCoordinate() -- Core.Point#COORDINATE
+  local ZoneVec2=ZoneCoord:GetVec2()
+
+  -- Debug smoke zone and point.
+  if self.smoke or self.Debug then
+    ZoneCoord:SmokeBlue()
+  end
+  if self.Debug then
+    self.RetreatZone:SmokeZone(SMOKECOLOR.Red, 12)
+  end
+  
+  -- Set ROE to weapon hold.
+  self:_SetROE(SUPPRESSION.ROE.Hold)
+  
+  -- Set the ALARM STATE to GREEN. Then the unit will move even if it is under fire.
+  self:_SetAlarmState(SUPPRESSION.AlarmState.Green)
+  
+  -- Make unit run to retreat zone and wait there for ~two hours.
+  self:_Run(ZoneCoord, self.Speed, self.Formation, self.RetreatWait)
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Before "Retreateded" event. Check that the group is really in the retreat zone.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function SUPPRESSION:onbeforeRetreated(Controllable, From, Event, To)
+  self:_EventFromTo("onbeforeRetreated", Event, From, To)
+  
+  -- Check that the group is inside the zone.
+  local inzone=self.RetreatZone:IsVec3InZone(Controllable:GetVec3())
+  
+  return inzone
+end
+
+--- After "Retreateded" event. Group has reached the retreat zone. Set ROE to return fire and alarm state to auto.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function SUPPRESSION:onafterRetreated(Controllable, From, Event, To)
+  self:_EventFromTo("onafterRetreated", Event, From, To)
+  
+  -- Set ROE to weapon return fire.
+  self:_SetROE(SUPPRESSION.ROE.Return)
+  
+  -- Set the ALARM STATE to GREEN. Then the unit will move even if it is under fire.
+  self:_SetAlarmState(SUPPRESSION.AlarmState.Auto)
+  
+  -- TODO: Add hold task? Move from _Run()
+end
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- After "Dead" event, when a unit has died. When all units of a group are dead, FSM is stopped and eventhandler removed.
+-- @param #SUPPRESSION self
+-- @param Wrapper.Controllable#CONTROLLABLE Controllable Controllable of the group.
+-- @param #string From From state.
+-- @param #string Event Event.
+-- @param #string To To state.
+function SUPPRESSION:onafterDead(Controllable, From, Event, To)
+  self:_EventFromTo("onafterDead", Event, From, To)
+  
+  -- Number of units left in the group.
+  local nunits=#self.Controllable:GetUnits()
+      
+  local text=string.format("Group %s: One of our units just died! %d units left.", self.Controllable:GetName(), nunits)
+  MESSAGE:New(text, 10):ToAllIf(self.Debug)
+  self:T(SUPPRESSION.id..text)
+      
+  -- Go to stop state.
+  if nunits==0 then
+    self:T(SUPPRESSION.id..string.format("Stopping SUPPRESSION for group %s.", Controllable:GetName()))
+    self:Stop()
+    if self.mooseevents then
+      self:UnHandleEvent(EVENTS.Dead)
+      self:UnHandleEvent(EVENTS.Hit)
+    else
+      world.removeEventHandler(self)
+    end
+  end
+  
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- Event Handler
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Event handler for suppressed groups.
+--@param #SUPPRESSION self
+function SUPPRESSION:onEvent(Event)
+  --self:E(event)
+  
+  if Event == nil or Event.initiator == nil or Unit.getByName(Event.initiator:getName()) == nil then
+    return true
+  end
+    
+  local EventData={}
+  if Event.initiator then
+    EventData.IniDCSUnit   = Event.initiator
+    EventData.IniUnitName  = Event.initiator:getName()
+    EventData.IniDCSGroup  = Event.initiator:getGroup()
+    EventData.IniGroupName = Event.initiator:getGroup():getName()
+    EventData.IniGroup     = GROUP:FindByName(EventData.IniGroupName)
+    EventData.IniUnit      = UNIT:FindByName(EventData.IniUnitName)
+  end
+
+  if Event.target then
+    EventData.TgtDCSUnit   = Event.target
+    EventData.TgtUnitName  = Event.target:getName()
+    EventData.TgtDCSGroup  = Event.target:getGroup()
+    EventData.TgtGroupName = Event.target:getGroup():getName()
+    EventData.TgtGroup     = GROUP:FindByName(EventData.TgtGroupName)
+    EventData.TgtUnit      = UNIT:FindByName(EventData.TgtUnitName)
+  end  
+  
+  
+  -- Event HIT
+  if Event.id == world.event.S_EVENT_HIT then
+    self:_OnEventHit(EventData)
+  end
+
+  -- Event DEAD
+  if Event.id == world.event.S_EVENT_DEAD then
+    self:_OnEventDead(EventData)
+  end
+  
+end
+
+--- Event handler for Dead event of suppressed groups.
+-- @param #SUPPRESSION self
+-- @param Core.Event#EVENTDATA EventData
+function SUPPRESSION:_OnEventHit(EventData)
+  self:F(EventData)
+
+  local GroupNameSelf=self.Controllable:GetName()
+  local GroupNameTgt=EventData.TgtGroupName
+  local TgtUnit=EventData.TgtUnit
+  local tgt=EventData.TgtDCSUnit
+  local IniUnit=EventData.IniUnit
+
+  -- Check that correct group was hit.
+  if GroupNameTgt == GroupNameSelf then
+  
+    self:T(SUPPRESSION.id..string.format("Hit event at t = %5.1f", timer.getTime()))
+  
+    -- Flare unit that was hit.
+    if self.flare or self.Debug then
+      TgtUnit:FlareRed()
+    end
+    
+    -- Increase Hit counter.
+    self.Nhit=self.Nhit+1
+
+    -- Info on hit times.
+    self:T(SUPPRESSION.id..string.format("Group %s has just been hit %d times.", self.Controllable:GetName(), self.Nhit))
+    
+    --self:Status()
+    local life=tgt:getLife()/(tgt:getLife0()+1)*100
+    self:T2(SUPPRESSION.id..string.format("Target unit life = %5.1f", life))
+  
+    -- FSM Hit event.
+    self:__Hit(3, TgtUnit, IniUnit)
+  end
+
+end
+
+--- Event handler for Dead event of suppressed groups.
+-- @param #SUPPRESSION self
+-- @param Core.Event#EVENTDATA EventData
+function SUPPRESSION:_OnEventDead(EventData)
+
+  local GroupNameSelf=self.Controllable:GetName()
+  local GroupNameIni=EventData.IniGroupName
+
+  -- Check for correct group.
+  if  GroupNameIni== GroupNameSelf then
+    
+    -- Dead Unit.
+    local IniUnit=EventData.IniUnit --Wrapper.Unit#UNIT
+    local IniUnitName=EventData.IniUnitName
+    
+    if EventData.IniUnit then
+      self:T2(SUPPRESSION.id..string.format("Group %s: Dead MOOSE unit DOES exist! Unit name %s.", GroupNameIni, IniUnitName))
+    else
+      self:T2(SUPPRESSION.id..string.format("Group %s: Dead MOOSE unit DOES NOT not exist! Unit name %s.", GroupNameIni, IniUnitName))
+    end
+    
+    if EventData.IniDCSUnit then
+      self:T2(SUPPRESSION.id..string.format("Group %s: Dead DCS unit DOES exist! Unit name %s.", GroupNameIni, IniUnitName))
+    else
+      self:T2(SUPPRESSION.id..string.format("Group %s: Dead DCS unit DOES NOT exist! Unit name %s.", GroupNameIni, IniUnitName))
+    end
+    
+    -- Flare unit that died.
+    if IniUnit and (self.flare or self.Debug) then
+      IniUnit:FlareWhite()
+      self:T(SUPPRESSION.id..string.format("Flare Dead MOOSE unit."))
+    end
+    
+    -- Flare unit that died.
+    if EventData.IniDCSUnit and (self.flare or self.Debug) then
+      local p=EventData.IniDCSUnit:getPosition().p
+      trigger.action.signalFlare(p, trigger.flareColor.Yellow , 0)
+      self:T(SUPPRESSION.id..string.format("Flare Dead DCS unit."))
+    end
+       
+    -- Get status.
+    self:Status()
+    
+    -- FSM Dead event.
+    self:__Dead(0.1)
+    
+  end
+
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Suppress fire of a unit by setting its ROE to "Weapon Hold".
+-- @param #SUPPRESSION self
+function SUPPRESSION:_Suppress()
+
+  -- Current time.
+  local Tnow=timer.getTime()
+  
+  -- Controllable
+  local Controllable=self.Controllable --Wrapper.Controllable#CONTROLLABLE
+  
+  -- Group will hold their weapons.
+  self:_SetROE(SUPPRESSION.ROE.Hold)
+  
+  -- Get randomized time the unit is suppressed.
+  local sigma=(self.Tsuppress_max-self.Tsuppress_min)/4
+  local Tsuppress=self:_Random_Gaussian(self.Tsuppress_ave,sigma,self.Tsuppress_min, self.Tsuppress_max)
+  
+  -- Time at which the suppression is over.
+  local renew=true
+  if self.TsuppressionOver ~= nil then
+    if Tsuppress+Tnow > self.TsuppressionOver then
+      self.TsuppressionOver=Tnow+Tsuppress
+    else
+      renew=false
+    end
+  else
+    self.TsuppressionOver=Tnow+Tsuppress
+  end
+  
+  -- Recovery event will be called in Tsuppress seconds.
+  if renew then
+    self:__Recovered(self.TsuppressionOver-Tnow)
+  end
+  
+  -- Debug message.
+  local text=string.format("Group %s is suppressed for %d seconds. Suppression ends at %d:%02d.", Controllable:GetName(), Tsuppress, self.TsuppressionOver/60, self.TsuppressionOver%60)
+  MESSAGE:New(text, 10):ToAllIf(self.Debug)
+  self:T(SUPPRESSION.id..text)
+
+end
+
+
+--- Make group run/drive to a certain point. We put in several intermediate waypoints because sometimes the group stops before it arrived at the desired point.
+--@param #SUPPRESSION self
+--@param Core.Point#COORDINATE fin Coordinate where we want to go.
+--@param #number speed Speed of group. Default is 20.
+--@param #string formation Formation of group. Default is "Vee".
+--@param #number wait Time the group will wait/hold at final waypoint. Default is 30 seconds.
+function SUPPRESSION:_Run(fin, speed, formation, wait)
+
+  speed=speed or 20
+  formation=formation or "Off road"
+  wait=wait or 30
+
+  local group=self.Controllable -- Wrapper.Controllable#CONTROLLABLE
+  
+  -- Clear all tasks.
+  group:ClearTasks()
+  
+  -- Current coordinates of group.
+  local ini=group:GetCoordinate()
+  
+  -- Distance between current and final point. 
+  local dist=ini:Get2DDistance(fin)
+  
+  -- Heading from ini to fin.
+  local heading=self:_Heading(ini, fin)
+  
+  -- Number of waypoints.
+  local nx
+  if dist <= 50 then
+    nx=2
+  elseif dist <= 100 then
+    nx=3
+  elseif dist <= 500 then
+    nx=4
+  else
+    nx=5
+  end
+  
+  -- Number of intermediate waypoints.
+  local dx=dist/(nx-1)
+    
+  -- Waypoint and task arrays.
+  local wp={}
+  local tasks={}
+  
+  -- First waypoint is the current position of the group.
+  wp[1]=ini:WaypointGround(speed, formation)
+  tasks[1]=group:TaskFunction("SUPPRESSION._Passing_Waypoint", self, 1, false)
+
+  if self.Debug then  
+    local MarkerID=ini:MarkToAll(string.format("Waypoing %d of group %s (initial)", #wp, self.Controllable:GetName()))
+  end
+  
+  self:T2(SUPPRESSION.id..string.format("Number of waypoints %d", nx))
+  for i=1,nx-2 do
+  
+    local x=dx*i
+    local coord=ini:Translate(x, heading)
+    
+    wp[#wp+1]=coord:WaypointGround(speed, formation)
+    tasks[#tasks+1]=group:TaskFunction("SUPPRESSION._Passing_Waypoint", self, #wp, false)
+    
+    self:T2(SUPPRESSION.id..string.format("%d x = %4.1f", i, x))
+    if self.Debug then
+      local MarkerID=coord:MarkToAll(string.format("Waypoing %d of group %s", #wp, self.Controllable:GetName()))
+    end
+    
+  end
+  self:T2(SUPPRESSION.id..string.format("Total distance: %4.1f", dist))
+  
+  -- Final waypoint.
+  wp[#wp+1]=fin:WaypointGround(speed, formation)
+  if self.Debug then
+    local MarkerID=fin:MarkToAll(string.format("Waypoing %d of group %s (final)", #wp, self.Controllable:GetName()))
+  end
+  
+    -- Task to hold.
+  local ConditionWait=group:TaskCondition(nil, nil, nil, nil, wait, nil)
+  local TaskHold = group:TaskHold()
+  
+  -- Task combo to make group hold at final waypoint.
+  local TaskComboFin = {}
+  TaskComboFin[#TaskComboFin+1] = group:TaskFunction("SUPPRESSION._Passing_Waypoint", self, #wp, true)
+  TaskComboFin[#TaskComboFin+1] = group:TaskControlled(TaskHold, ConditionWait)
+
+  -- Add final task.  
+  tasks[#tasks+1]=group:TaskCombo(TaskComboFin)
+
+  -- Original waypoints of the group.
+  local Waypoints = group:GetTemplateRoutePoints()
+  
+  -- New points are added to the default route.
+  for i,p in ipairs(wp) do
+    table.insert(Waypoints, i, wp[i])
+  end
+  
+  -- Set task for all waypoints.
+  for i,wp in ipairs(Waypoints) do
+    group:SetTaskWaypoint(Waypoints[i], tasks[i])
+  end
+  
+  -- Submit task and route group along waypoints.
+  group:Route(Waypoints)
+
+end
+
+--- Function called when group is passing a waypoint. At the last waypoint we set the group back to CombatReady.
+--@param Wrapper.Group#GROUP group Group which is passing a waypoint.
+--@param #SUPPRESSION Fsm The suppression object.
+--@param #number i Waypoint number that has been reached.
+--@param #boolean final True if it is the final waypoint. Start Fightback.
+function SUPPRESSION._Passing_Waypoint(group, Fsm, i, final)
+
+  -- Debug message.
+  local text=string.format("Group %s passing waypoint %d (final=%s)", group:GetName(), i, tostring(final))
+  MESSAGE:New(text,10):ToAllIf(Fsm.Debug)
+  if Fsm.Debug then
+    env.info(SUPPRESSION.id..text)
+  end
+
+  if final then
+    if Fsm:is("Retreating") then
+      -- Retreated-->Retreated.
+      Fsm:Retreated()
+    else
+    -- FightBack-->Combatready: Change alarm state back to default.  
+      Fsm:FightBack()
+    end
+  end
+end
+
+
+--- Search a place to hide. This is any scenery object in the vicinity.
+--@param #SUPPRESSION self
+--@return Core.Point#COORDINATE Coordinate of the hideout place.
+--@return nil If no scenery object is within search radius.
+function SUPPRESSION:_SearchHideout()
+  -- We search objects in a zone with radius ~300 m around the group.
+  local Zone = ZONE_GROUP:New("Zone_Hiding", self.Controllable, self.TakecoverRange)
+  local gpos = self.Controllable:GetCoordinate()
+
+  -- Scan for Scenery objects to run/drive to.
+  Zone:Scan(Object.Category.SCENERY)
+  
+  -- Array with all possible hideouts, i.e. scenery objects in the vicinity of the group.
+  local hideouts={}
+
+  for SceneryTypeName, SceneryData in pairs(Zone:GetScannedScenery()) do
+    for SceneryName, SceneryObject in pairs(SceneryData) do
+    
+      local SceneryObject = SceneryObject -- Wrapper.Scenery#SCENERY
+      
+      -- Position of the scenery object.
+      local spos=SceneryObject:GetCoordinate()
+      
+      -- Distance from group to hideout.
+      local distance= spos:Get2DDistance(gpos)
+      
+      if self.Debug then
+        -- Place markers on every possible scenery object.
+        local MarkerID=SceneryObject:GetCoordinate():MarkToAll(string.format("%s scenery object %s", self.Controllable:GetName(),SceneryObject:GetTypeName()))
+        local text=string.format("%s scenery: %s, Coord %s", self.Controllable:GetName(), SceneryObject:GetTypeName(), SceneryObject:GetCoordinate():ToStringLLDMS())
+        self:T2(SUPPRESSION.id..text)
+      end
+      
+      -- Add to table.
+      table.insert(hideouts, {object=SceneryObject, distance=distance})      
+    end
+  end
+  
+  -- Get random hideout place.
+  local Hideout=nil
+  if #hideouts>0 then
+  
+    -- Debug info.
+    self:T(SUPPRESSION.id.."Number of hideouts "..#hideouts)
+    
+    -- Sort results table wrt number of hits.
+    local _sort = function(a,b) return a.distance < b.distance end
+    table.sort(hideouts,_sort)
+    
+    -- Pick a random location.
+    --Hideout=hideouts[math.random(#hideouts)].object
+    
+    -- Pick closest location.
+    Hideout=hideouts[1].object:GetCoordinate()
+    
+  else
+    self:E(SUPPRESSION.id.."No hideouts found!")
+  end
+  
+  return Hideout
+
+end
+
+--- Get (relative) life in percent of a group. Function returns the value of the units with the smallest and largest life. Also the average value of all groups is returned.
+-- @param #SUPPRESSION self
+-- @return #number Smallest life value of all units.
+-- @return #number Largest life value of all units.
+-- @return #number Average life value of all alife groups
+-- @return #number Average life value of all groups including already dead ones.
+-- @return #number Relative group strength.
+function SUPPRESSION:_GetLife()
+
+  local group=self.Controllable --Wrapper.Group#GROUP
+  
+  if group and group:IsAlive() then
+  
+    local units=group:GetUnits()
+  
+    local life_min=nil
+    local life_max=nil
+    local life_ave=0
+    local life_ave0=0
+    local n=0
+    
+    local groupstrength=#units/self.IniGroupStrength*100
+    
+    self.T2(SUPPRESSION.id..string.format("Group %s _GetLife nunits = %d", self.Controllable:GetName(), #units))
+    
+    for _,unit in pairs(units) do
+    
+      local unit=unit -- Wrapper.Unit#UNIT
+      if unit and unit:IsAlive() then
+        n=n+1
+        local life=unit:GetLife()/(unit:GetLife0()+1)*100
+        if life_min==nil or life < life_min then
+          life_min=life
+        end
+        if life_max== nil or life > life_max then
+          life_max=life
+        end
+        life_ave=life_ave+life
+        if self.Debug then
+          local text=string.format("n=%02d: Life = %3.1f, Life0 = %3.1f, min=%3.1f, max=%3.1f, ave=%3.1f, group=%3.1f", n, unit:GetLife(), unit:GetLife0(), life_min, life_max, life_ave/n,groupstrength)
+          self:T2(SUPPRESSION.id..text)
+        end
+      end
+      
+    end
+    
+    -- If the counter did not increase (can happen!) return 0
+    if n==0 then
+      return 0,0,0,0,0
+    end
+    
+    -- Average life relative to initial group strength including the dead ones.
+    life_ave0=life_ave/self.IniGroupStrength
+    
+    -- Average life of all alive units.
+    life_ave=life_ave/n    
+    
+    return life_min, life_max, life_ave, life_ave0, groupstrength
+  else
+    return 0, 0, 0, 0, 0
+  end
+end
+
+
+--- Heading from point a to point b in degrees.
+--@param #SUPPRESSION self
+--@param Core.Point#COORDINATE a Coordinate.
+--@param Core.Point#COORDINATE b Coordinate.
+--@return #number angle Angle from a to b in degrees.
+function SUPPRESSION:_Heading(a, b, distance)
+  local dx = b.x-a.x
+  local dy = b.z-a.z
+  local angle = math.deg(math.atan2(dy,dx))
+  if angle < 0 then
+    angle = 360 + angle
+  end
+  return angle
+end
+
+--- Generate Gaussian pseudo-random numbers.
+-- @param #SUPPRESSION self
+-- @param #number x0 Expectation value of distribution.
+-- @param #number sigma (Optional) Standard deviation. Default 10.
+-- @param #number xmin (Optional) Lower cut-off value.
+-- @param #number xmax (Optional) Upper cut-off value.
+-- @return #number Gaussian random number.
+function SUPPRESSION:_Random_Gaussian(x0, sigma, xmin, xmax)
+
+  -- Standard deviation. Default 5 if not given.
+  sigma=sigma or 5
+    
+  local r
+  local gotit=false
+  local i=0
+  while not gotit do
+  
+    -- Uniform numbers in [0,1). We need two.
+    local x1=math.random()
+    local x2=math.random()
+  
+    -- Transform to Gaussian exp(-(x-x0)²/(2*sigma²).
+    r = math.sqrt(-2*sigma*sigma * math.log(x1)) * math.cos(2*math.pi * x2) + x0
+    
+    i=i+1
+    if (r>=xmin and r<=xmax) or i>100 then
+      gotit=true
+    end
+  end
+  
+  return r
+
+end
+
+--- Sets the ROE for the group and updates the current ROE variable.
+-- @param #SUPPRESSION self
+-- @param #string roe ROE the group will get. Possible "Free", "Hold", "Return". Default is self.DefaultROE.
+function SUPPRESSION:_SetROE(roe)
+  local group=self.Controllable --Wrapper.Controllable#CONTROLLABLE
+  
+  -- If no argument is given, we take the default ROE.
+  roe=roe or self.DefaultROE
+  
+  -- Update the current ROE.
+  self.CurrentROE=roe
+  
+  -- Set the ROE.
+  if roe==SUPPRESSION.ROE.Free then
+    group:OptionROEOpenFire()
+  elseif roe==SUPPRESSION.ROE.Hold then
+    group:OptionROEHoldFire()
+  elseif roe==SUPPRESSION.ROE.Return then
+    group:OptionROEReturnFire()
+  else
+    self:E(SUPPRESSION.id.."Unknown ROE requested: "..tostring(roe))
+    group:OptionROEOpenFire()
+    self.CurrentROE=SUPPRESSION.ROE.Free
+  end
+  
+  local text=string.format("Group %s now has ROE %s.", self.Controllable:GetName(), self.CurrentROE)
+  self:T(SUPPRESSION.id..text)
+end
+
+--- Sets the alarm state of the group and updates the current alarm state variable.
+-- @param #SUPPRESSION self
+-- @param #string state Alarm state the group will get. Possible "Auto", "Green", "Red". Default is self.DefaultAlarmState.
+function SUPPRESSION:_SetAlarmState(state)
+  local group=self.Controllable --Wrapper.Controllable#CONTROLLABLE
+  
+  -- Input or back to default alarm state.
+  state=state or self.DefaultAlarmState
+  
+  -- Update the current alam state of the group.
+  self.CurrentAlarmState=state
+  
+  -- Set the alarm state.
+  if state==SUPPRESSION.AlarmState.Auto then
+    group:OptionAlarmStateAuto()
+  elseif state==SUPPRESSION.AlarmState.Green then
+    group:OptionAlarmStateGreen()
+  elseif state==SUPPRESSION.AlarmState.Red then
+    group:OptionAlarmStateRed()
+  else
+    self:E(SUPPRESSION.id.."Unknown alarm state requested: "..tostring(state))
+    group:OptionAlarmStateAuto()
+    self.CurrentAlarmState=SUPPRESSION.AlarmState.Auto
+  end
+  
+  local text=string.format("Group %s now has Alarm State %s.", self.Controllable:GetName(), self.CurrentAlarmState)
+  self:T(SUPPRESSION.id..text)
+end
+
+--- Print event-from-to string to DCS log file. 
+-- @param #SUPPRESSION self
+-- @param #string BA Before/after info.
+-- @param #string Event Event.
+-- @param #string From From state.
+-- @param #string To To state.
+function SUPPRESSION:_EventFromTo(BA, Event, From, To)
+  local text=string.format("\n%s: %s EVENT %s: %s --> %s", BA, self.Controllable:GetName(), Event, From, To)
+  self:T2(SUPPRESSION.id..text)
+end
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- **Functional** - (R2.4) Rudimentary ATC.
+--  
+-- ![Banner Image](..\Presentations\PSEUDOATC\PSEUDOATC_Main.jpg)
+-- 
+-- ====
+-- 
+-- The pseudo ATC enhances the standard DCS ATC functions.
+-- 
+-- In particular, a menu entry "Pseudo ATC" is created in the "F10 Other..." radiomenu.
+-- 
+-- ## Features
+-- 
+-- * Weather report at nearby airbases and mission waypoints.
+-- * Report absolute bearing and range to nearest airports and mission waypoints.
+-- * Report current altitude AGL of own aircraft.
+-- * Upon request, ATC reports altitude until touchdown.
+-- * Works with static and dynamic weather.
+-- * Player can select the unit system (metric or imperial) in which information is reported.
+-- * All maps supported (Caucasus, NTTR, Normandy, Persian Gulf and all future maps).
+--  
+-- ====
+-- 
+-- # Demo Missions
+--
+-- ### [MOOSE - ALL Demo Missions](https://github.com/FlightControl-Master/MOOSE_MISSIONS)
+-- 
+-- ====
+-- 
+-- # YouTube Channel
+-- 
+-- ### [MOOSE YouTube Channel](https://www.youtube.com/channel/UCjrA9j5LQoWsG4SpS8i79Qg)
+-- 
+-- ===
+-- 
+-- ### Author: **[funkyfranky](https://forums.eagle.ru/member.php?u=115026)**
+-- 
+-- ### Contributions: [FlightControl](https://forums.eagle.ru/member.php?u=89536)
+-- 
+-- ====
+-- @module PseudoATC
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- PSEUDOATC class
+-- @type PSEUDOATC
+-- @field #string ClassName Name of the Class.
+-- @field #table player Table comprising each player info.
+-- @field #boolean Debug If true, print debug info to dcs.log file.
+-- @field #number mdur Duration in seconds how low messages to the player are displayed.
+-- @field #number mrefresh Interval in seconds after which the F10 menu is refreshed. E.g. by the closest airports. Default is 120 sec.
+-- @field #number talt Interval in seconds between reporting altitude until touchdown. Default 3 sec.
+-- @field #boolean chatty Display some messages on events like take-off and touchdown.
+-- @field #boolean eventsmoose If true, events are handled by MOOSE. If false, events are handled directly by DCS eventhandler.
+-- @extends Core.Base#BASE
+
+---# PSEUDOATC class, extends @{Base#BASE}
+-- The PSEUDOATC class adds some rudimentary ATC functionality via the radio menu.
+-- 
+-- Local weather reports can be requested for nearby airports and player's mission waypoints.
+-- The weather report includes
+-- 
+-- * QFE and QNH pressures,
+-- * Temperature,
+-- * Wind direction and strength.
+-- 
+-- The list of airports is updated every 60 seconds. This interval can be adjusted by the function @{#PSEUDOATC.SetMenuRefresh}(*interval*).
+-- 
+-- Likewise, absolute bearing and range to the close by airports and mission waypoints can be requested.
+-- 
+-- The player can switch the unit system in which all information is displayed during the mission with the MOOSE settings radio menu.
+-- The unit system can be set to either imperial or metric. Altitudes are reported in feet or meter, distances in kilometers or nautical miles,
+-- temperatures in degrees Fahrenheit or Celsius and QFE/QNH pressues in inHg or mmHg.
+-- Note that the pressures are also reported in hPa independent of the unit system setting.
+-- 
+-- In bad weather conditions, the ATC can "talk you down", i.e. will continuously report your altitude on the final approach.
+-- Default reporting time interval is 3 seconds. This can be adjusted via the @{#PSEUDOATC.SetReportAltInterval}(*interval*) function.
+-- The reporting stops automatically when the player lands or can be stopped manually by clicking on the radio menu item again.
+-- So the radio menu item acts as a toggle to switch the reporting on and off.
+-- 
+-- ## Scripting
+-- 
+-- Scripting is almost trivial. Just add the following two lines to your script:
+-- 
+--     pseudoATC=PSEUDOATC:New()
+--     pseudoATC:Start()
+-- 
+-- 
+-- @field #PSEUDOATC
+PSEUDOATC={
+  ClassName = "PSEUDOATC",
+  player={},
+  Debug=false,
+  mdur=30,
+  mrefresh=120,
+  talt=3,
+  chatty=true,
+  eventsmoose=true,
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Some ID to identify who we are in output of the DCS.log file.
+-- @field #string id
+PSEUDOATC.id="PseudoATC | "
+
+--- PSEUDOATC version.
+-- @field #number version
+PSEUDOATC.version="0.9.0"
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+
+-- TODO list
+-- DONE: Add takeoff event.
+-- DONE: Add user functions.
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+
+--- PSEUDOATC contructor.
+-- @param #PSEUDOATC self
+-- @return #PSEUDOATC Returns a PSEUDOATC object.
+function PSEUDOATC:New()
+
+  -- Inherit BASE.
+  local self=BASE:Inherit(self, BASE:New()) -- #PSEUDOATC
+  
+  -- Debug info
+  self:E(PSEUDOATC.id..string.format("PseudoATC version %s", PSEUDOATC.version))
+
+  -- Return object.
+  return self
+end
+
+--- Starts the PseudoATC event handlers.
+-- @param #PSEUDOATC self
+function PSEUDOATC:Start()
+  self:F()
+  
+  -- Debug info
+  self:E(PSEUDOATC.id.."Starting PseudoATC")
+  
+  -- Handle events.
+  if self.eventsmoose then
+    self:T(PSEUDOATC.id.."Events are handled by MOOSE.")
+    self:HandleEvent(EVENTS.Birth,           self._OnBirth)
+    self:HandleEvent(EVENTS.Land,            self._PlayerLanded)
+    self:HandleEvent(EVENTS.Takeoff,         self._PlayerTakeOff)
+    self:HandleEvent(EVENTS.PlayerLeaveUnit, self._PlayerLeft)
+    self:HandleEvent(EVENTS.Crash,           self._PlayerLeft)
+    --self:HandleEvent(EVENTS.Ejection,        self._PlayerLeft)
+    --self:HandleEvent(EVENTS.PilotDead,       self._PlayerLeft)
+  else
+    self:T(PSEUDOATC.id.."Events are handled by DCS.")
+    -- Events are handled directly by DCS.
+    world.addEventHandler(self)
+  end
+  
+end
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- User Functions
+
+--- Debug mode on. Send messages to everone.
+-- @param #PSEUDOATC self
+function PSEUDOATC:DebugOn()
+  self.Debug=true
+end
+
+--- Debug mode off. This is the default setting.
+-- @param #PSEUDOATC self
+function PSEUDOATC:DebugOff()
+  self.Debug=false
+end
+
+--- Chatty mode on. Display some messages on take-off and touchdown.
+-- @param #PSEUDOATC self
+function PSEUDOATC:ChattyOn()
+  self.chatty=true
+end
+
+--- Chatty mode off. Don't display some messages on take-off and touchdown.
+-- @param #PSEUDOATC self
+function PSEUDOATC:ChattyOff()
+  self.chatty=false
+end
+
+--- Set duration how long messages are displayed.
+-- @param #PSEUDOATC self
+-- @param #number duration Time in seconds. Default is 30 sec.
+function PSEUDOATC:SetMessageDuration(duration)
+  self.mdur=duration or 30
+end
+
+--- Set time interval after which the F10 radio menu is refreshed.
+-- @param #PSEUDOATC self
+-- @param #number interval Interval in seconds. Default is every 120 sec.
+function PSEUDOATC:SetMenuRefresh(interval)
+  self.mrefresh=interval or 120
+end
+
+--- Enable/disable event handling by MOOSE or DCS.
+-- @param #PSEUDOATC self
+-- @param #boolean switch If true, events are handled by MOOSE (default). If false, events are handled directly by DCS.
+function PSEUDOATC:SetEventsMoose(switch)
+  self.eventsmoose=switch
+end
+
+--- Set time interval for reporting altitude until touchdown.
+-- @param #PSEUDOATC self
+-- @param #number interval Interval in seconds. Default is every 3 sec.
+function PSEUDOATC:SetReportAltInterval(interval)
+  self.talt=interval or 3
+end
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- Event Handling
+
+--- Event handler for suppressed groups.
+--@param #PSEUDOATC self
+--@param #table Event Event data table. Holds event.id, event.initiator and event.target etc.
+function PSEUDOATC:onEvent(Event)
+  if Event == nil or Event.initiator == nil or Unit.getByName(Event.initiator:getName()) == nil then
+    return true
+  end
+
+  local DCSiniunit  = Event.initiator
+  local DCSplace    = Event.place
+  local DCSsubplace = Event.subplace
+
+  local EventData={}
+  local _playerunit=nil
+  local _playername=nil
+  
+  if Event.initiator then
+    EventData.IniUnitName  = Event.initiator:getName()
+    EventData.IniDCSGroup  = Event.initiator:getGroup()
+    EventData.IniGroupName = Event.initiator:getGroup():getName()  
+    -- Get player unit and name. This returns nil,nil if the event was not fired by a player unit. And these are the only events we are interested in. 
+    _playerunit, _playername = self:_GetPlayerUnitAndName(EventData.IniUnitName)  
+  end
+
+  if Event.place then
+    EventData.Place=Event.place
+    EventData.PlaceName=Event.place:getName()
+  end
+  if Event.subplace then
+    EventData.SubPlace=Event.subplace
+    EventData.SubPlaceName=Event.subplace:getName()
+  end
+  
+  -- Event info.
+  self:T3(PSEUDOATC.id..string.format("EVENT: Event in onEvent with ID = %s", tostring(Event.id)))
+  self:T3(PSEUDOATC.id..string.format("EVENT: Ini unit   = %s" , tostring(EventData.IniUnitName)))
+  self:T3(PSEUDOATC.id..string.format("EVENT: Ini group  = %s" , tostring(EventData.IniGroupName)))
+  self:T3(PSEUDOATC.id..string.format("EVENT: Ini player = %s" , tostring(_playername)))
+  self:T3(PSEUDOATC.id..string.format("EVENT: Place      = %s" , tostring(EventData.PlaceName)))
+  self:T3(PSEUDOATC.id..string.format("EVENT: SubPlace   = %s" , tostring(EventData.SubPlaceName)))
+  
+  -- Event birth.
+  if Event.id == world.event.S_EVENT_BIRTH and _playername then
+    self:_OnBirth(EventData)
+  end
+  
+  -- Event takeoff.
+  if Event.id == world.event.S_EVENT_TAKEOFF and _playername and EventData.Place then
+    self:_PlayerTakeOff(EventData)
+  end
+  
+  -- Event land.
+  if Event.id == world.event.S_EVENT_LAND and _playername and EventData.Place then
+    self:_PlayerLanded(EventData)
+  end
+  
+  -- Event player left unit
+  if Event.id == world.event.S_EVENT_PLAYER_LEAVE_UNIT and _playername then
+    self:_PlayerLeft(EventData)
+  end
+
+  -- Event crash ==> player left unit
+  if Event.id == world.event.S_EVENT_CRASH and _playername then
+    self:_PlayerLeft(EventData)
+  end
+
+--[[
+  -- Event eject ==> player left unit
+  if Event.id == world.event.S_EVENT_EJECTION and _playername then
+    self:_PlayerLeft(EventData)
+  end
+
+  -- Event pilot dead ==> player left unit
+  if Event.id == world.event.S_EVENT_PILOT_DEAD and _playername then
+    self:_PlayerLeft(EventData)
+  end
+]]    
+end
+
+--- Function called my MOOSE event handler when a player enters a unit.
+-- @param #PSEUDOATC self
+-- @param Core.Event#EVENTDATA EventData
+function PSEUDOATC:_OnBirth(EventData)
+  self:F({EventData=EventData})
+  
+  -- Get unit and player.
+  local _unitName=EventData.IniUnitName  
+  local _unit, _playername=self:_GetPlayerUnitAndName(_unitName)
+  
+  -- Check if a player entered.
+  if _unit and _playername then
+    self:PlayerEntered(_unit)
+  end               
+ 
+end
+
+--- Function called by MOOSE event handler when a player leaves a unit or dies. 
+-- @param #PSEUDOATC self
+-- @param Core.Event#EVENTDATA EventData
+function PSEUDOATC:_PlayerLeft(EventData)
+  self:F({EventData=EventData})
+
+  -- Get unit and player.
+  local _unitName=EventData.IniUnitName  
+  local _unit, _playername=self:_GetPlayerUnitAndName(_unitName)
+  
+  -- Check if a player left.
+  if _unit and _playername then
+    self:PlayerLeft(_unit)
+  end
+end
+
+--- Function called by MOOSE event handler when a player landed. 
+-- @param #PSEUDOATC self
+-- @param Core.Event#EVENTDATA EventData
+function PSEUDOATC:_PlayerLanded(EventData)
+  self:F({EventData=EventData})
+
+  -- Get unit, player and place.
+  local _unitName=EventData.IniUnitName  
+  local _unit, _playername=self:_GetPlayerUnitAndName(_unitName)
+  local _base=nil
+  local _baseName=nil
+  if EventData.place then
+    _base=EventData.place
+    _baseName=EventData.place:getName()
+  end
+--  if EventData.subplace then
+--    local _subPlace=EventData.subplace
+--    local _subPlaceName=EventData.subplace:getName()
+--  end
+  
+  -- Call landed function.
+  if _unit and _playername and _base then
+    self:PlayerLanded(_unit, _baseName)
+  end
+end
+
+--- Function called by MOOSE/DCS event handler when a player took off. 
+-- @param #PSEUDOATC self
+-- @param Core.Event#EVENTDATA EventData
+function PSEUDOATC:_PlayerTakeOff(EventData)
+  self:F({EventData=EventData})
+
+  -- Get unit, player and place.
+  local _unitName=EventData.IniUnitName  
+  local _unit,_playername=self:_GetPlayerUnitAndName(_unitName)
+  local _base=nil
+  local _baseName=nil
+  if EventData.place then
+    _base=EventData.place
+    _baseName=EventData.place:getName()
+  end
+  
+  -- Call take-off function.
+  if _unit and _playername and _base then
+    self:PlayerTakeOff(_unit, _baseName)
+  end
+end
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- Event Functions
+
+--- Function called when a player enters a unit.
+-- @param #PSEUDOATC self
+-- @param Wrapper.Unit#UNIT unit Unit the player entered.
+function PSEUDOATC:PlayerEntered(unit)
+  self:F2({unit=unit})
+
+  -- Get player info.
+  local group=unit:GetGroup() --Wrapper.Group#GROUP
+  local GID=group:GetID()
+  local GroupName=group:GetName()
+  local PlayerName=unit:GetPlayerName()
+  local UnitName=unit:GetName()
+  local CallSign=unit:GetCallsign()
+  
+  -- Init player table.  
+  self.player[GID]={}
+  self.player[GID].group=group
+  self.player[GID].unit=unit
+  self.player[GID].groupname=GroupName
+  self.player[GID].unitname=UnitName
+  self.player[GID].playername=PlayerName
+  self.player[GID].callsign=CallSign
+  self.player[GID].waypoints=group:GetTaskRoute()
+  
+  -- Info message.
+  local text=string.format("Player %s entered unit %s of group %s (id=%d).", PlayerName, UnitName, GroupName, GID)
+  self:T(PSEUDOATC.id..text)
+  MESSAGE:New(text, 30):ToAllIf(self.Debug)
+  
+  -- Create main F10 menu, i.e. "F10/Pseudo ATC"
+  self.player[GID].menu_main=missionCommands.addSubMenuForGroup(GID, "Pseudo ATC")
+    
+  -- Create/update list of nearby airports.
+  self:LocalAirports(GID)
+  
+  -- Create submenu of local airports.
+  self:MenuAirports(GID)
+  
+  -- Create submenu Waypoints.
+  self:MenuWaypoints(GID)
+  
+  -- Start scheduler to refresh the F10 menues.
+  self.player[GID].scheduler, self.player[GID].schedulerid=SCHEDULER:New(nil, self.MenuRefresh, {self, GID}, self.mrefresh, self.mrefresh)
+ 
+end
+
+--- Function called when a player has landed.
+-- @param #PSEUDOATC self
+-- @param Wrapper.Unit#UNIT unit Unit of player which has landed.
+-- @param #string place Name of the place the player landed at.
+function PSEUDOATC:PlayerLanded(unit, place)
+  self:F2({unit=unit, place=place})
+  
+  -- Gather some information.
+  local group=unit:GetGroup()
+  local id=group:GetID()
+  local PlayerName=self.player[id].playername
+  local Callsign=self.player[id].callsign
+  local UnitName=self.player[id].unitname
+  local GroupName=self.player[id].groupname
+  local CallSign=self.player[id].callsign
+  
+  -- Debug message.
+  local text=string.format("Player %s in unit %s of group %s (id=%d) landed at %s.", PlayerName, UnitName, GroupName, id, place)
+  self:T(PSEUDOATC.id..text)
+  MESSAGE:New(text, 30):ToAllIf(self.Debug)
+  
+  -- Stop altitude reporting timer if its activated.
+  self:AltitudeTimerStop(id)
+  
+  -- Welcome message.
+  if place and self.chatty then
+    local text=string.format("Touchdown! Welcome to %s. Have a nice day!", place)
+    MESSAGE:New(text, self.mdur):ToGroup(group)
+  end
+
+end
+
+--- Function called when a player took off.
+-- @param #PSEUDOATC self
+-- @param Wrapper.Unit#UNIT unit Unit of player which has landed.
+-- @param #string place Name of the place the player landed at.
+function PSEUDOATC:PlayerTakeOff(unit, place)
+  self:F2({unit=unit, place=place})
+  
+  -- Gather some information.
+  local group=unit:GetGroup()
+  local id=group:GetID()
+  local PlayerName=self.player[id].playername
+  local Callsign=self.player[id].callsign
+  local UnitName=self.player[id].unitname
+  local GroupName=self.player[id].groupname
+  local CallSign=self.player[id].callsign
+  
+  -- Debug message.
+  local text=string.format("Player %s in unit %s of group %s (id=%d) took off at %s.", PlayerName, UnitName, GroupName, id, place)
+  self:T(PSEUDOATC.id..text)
+  MESSAGE:New(text, 30):ToAllIf(self.Debug)
+    
+  -- Bye-Bye message.
+  if place and self.chatty then
+    local text=string.format("%s, %s, you are airborne. Have a safe trip!", place, CallSign)
+    MESSAGE:New(text, self.mdur):ToGroup(group)
+  end
+
+end
+
+--- Function called when a player leaves a unit or dies. 
+-- @param #PSEUDOATC self
+-- @param Wrapper.Unit#UNIT unit Player unit which was left.
+function PSEUDOATC:PlayerLeft(unit)
+  self:F({unit=unit})
+ 
+  -- Get id.
+  local group=unit:GetGroup()
+  local id=group:GetID()
+  
+  if self.player[id] then
+  
+    -- Debug message.
+    local text=string.format("Player %s (callsign %s) of group %s just left unit %s.", self.player[id].playername, self.player[id].callsign, self.player[id].groupname, self.player[id].unitname)
+    self:T(PSEUDOATC.id..text)
+    MESSAGE:New(text, 30):ToAllIf(self.Debug)
+    
+    -- Stop scheduler for menu updates
+    if self.player[id].schedulerid then
+      self.player[id].scheduler:Stop(self.player[id].schedulerid)
+    end
+    
+    -- Stop scheduler for reporting alt if it runs.
+    self:AltitudeTimerStop(id)
+    
+    -- Remove main menu.
+    if self.player[id].menu_main then
+      missionCommands.removeItem(self.player[id].menu_main)
+    end
+  
+    -- Remove player array.
+    self.player[id]=nil
+    
+  end
+end
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- Menu Functions
+
+--- Refreshes all player menues.
+-- @param #PSEUDOATC self.
+-- @param #number id Group id of player unit. 
+function PSEUDOATC:MenuRefresh(id)
+  self:F({id=id})
+
+  -- Debug message.
+  local text=string.format("Refreshing menues for player %s in group %s.", self.player[id].playername, self.player[id].groupname)
+  self:T(PSEUDOATC.id..text)
+  MESSAGE:New(text,30):ToAllIf(self.Debug)
+
+  -- Clear menu.
+  self:MenuClear(id)
+  
+  -- Create list of nearby airports.
+  self:LocalAirports(id)
+      
+  -- Create submenu Local Airports.
+  self:MenuAirports(id)
+  
+  -- Create submenu Waypoints etc.
+  self:MenuWaypoints(id)
+  
+end
+
+
+--- Clear player menus.
+-- @param #PSEUDOATC self.
+-- @param #number id Group id of player unit. 
+function PSEUDOATC:MenuClear(id)
+  self:F(id)
+
+  -- Debug message.
+  local text=string.format("Clearing menus for player %s in group %s.", self.player[id].playername, self.player[id].groupname)
+  self:T(PSEUDOATC.id..text)
+  MESSAGE:New(text,30):ToAllIf(self.Debug)
+  
+  -- Delete Airports menu.
+  if self.player[id].menu_airports then
+    missionCommands.removeItemForGroup(id, self.player[id].menu_airports)
+    self.player[id].menu_airports=nil
+  else
+    self:T2(PSEUDOATC.id.."No airports to clear menus.")
+  end
+ 
+  -- Delete waypoints menu.
+  if self.player[id].menu_waypoints then
+    missionCommands.removeItemForGroup(id, self.player[id].menu_waypoints)
+    self.player[id].menu_waypoints=nil
+  end
+  
+  -- Delete report alt until touchdown menu command.
+  if self.player[id].menu_reportalt then
+    missionCommands.removeItemForGroup(id, self.player[id].menu_reportalt)
+    self.player[id].menu_reportalt=nil
+  end
+
+  -- Delete request current alt menu command.
+  if self.player[id].menu_requestalt then
+    missionCommands.removeItemForGroup(id, self.player[id].menu_requestalt)
+    self.player[id].menu_requestalt=nil
+  end
+
+end
+
+--- Create "F10/Pseudo ATC/Local Airports/Airport Name/" menu items each containing weather report and BR request.
+-- @param #PSEUDOATC self
+-- @param #number id Group id of player unit for which menues are created. 
+function PSEUDOATC:MenuAirports(id)
+  self:F(id)
+
+  -- Table for menu entries.
+  self.player[id].menu_airports=missionCommands.addSubMenuForGroup(id, "Local Airports", self.player[id].menu_main)
+   
+  local i=0
+  for _,airport in pairs(self.player[id].airports) do
+  
+    i=i+1
+    if i > 10 then
+      break -- Max 10 airports due to 10 menu items restriction.
+    end 
+    
+    local name=airport.name
+    local d=airport.distance
+    local pos=AIRBASE:FindByName(name):GetCoordinate()
+    
+    --F10menu_ATC_airports[ID][name] = missionCommands.addSubMenuForGroup(ID, name, F10menu_ATC)
+    local submenu=missionCommands.addSubMenuForGroup(id, name, self.player[id].menu_airports)
+    
+    -- Create menu reporting commands
+    missionCommands.addCommandForGroup(id, "Weather Report", submenu, self.ReportWeather, self, id, pos, name)
+    missionCommands.addCommandForGroup(id, "Request BR", submenu, self.ReportBR, self, id, pos, name)
+    
+    -- Debug message.
+    self:T(string.format(PSEUDOATC.id.."Creating airport menu item %s for ID %d", name, id))
+  end
+end
+
+--- Create "F10/Pseudo ATC/Waypoints/<Waypoint i>  menu items.
+-- @param #PSEUDOATC self
+-- @param #number id Group id of player unit for which menues are created. 
+function PSEUDOATC:MenuWaypoints(id)
+  self:F(id)
+
+  -- Player unit and callsign.
+  local unit=self.player[id].unit --Wrapper.Unit#UNIT
+  local callsign=self.player[id].callsign
+  
+  -- Debug info.
+  self:T(PSEUDOATC.id..string.format("Creating waypoint menu for %s (ID %d).", callsign, id))
+     
+  if #self.player[id].waypoints>0 then
+  
+    -- F10/PseudoATC/Waypoints
+    self.player[id].menu_waypoints=missionCommands.addSubMenuForGroup(id, "Waypoints", self.player[id].menu_main)
+
+    local j=0    
+    for i, wp in pairs(self.player[id].waypoints) do
+    
+      -- Increase counter
+      j=j+1
+      
+      if j>10 then
+        break -- max ten menu entries
+      end
+      
+      -- Position of Waypoint
+      local pos=COORDINATE:New(wp.x, wp.alt, wp.y)
+      local name=string.format("Waypoint %d", i-1)
+      
+      -- "F10/PseudoATC/Waypoints/Waypoint X"
+      local submenu=missionCommands.addSubMenuForGroup(id, name, self.player[id].menu_waypoints)
+      
+      -- Menu commands for each waypoint "F10/PseudoATC/My Aircraft (callsign)/Waypoints/Waypoint X/<Commands>"
+      missionCommands.addCommandForGroup(id, "Weather Report", submenu, self.ReportWeather, self, id, pos, name)
+      missionCommands.addCommandForGroup(id, "Request BR", submenu, self.ReportBR, self, id, pos, name)
+    end
+  end
+  
+  self.player[id].menu_reportalt  = missionCommands.addCommandForGroup(id, "Talk me down",     self.player[id].menu_main, self.AltidudeTimerToggle, self, id)
+  self.player[id].menu_requestalt = missionCommands.addCommandForGroup(id, "Request altitude", self.player[id].menu_main, self.ReportHeight, self, id)
+end
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- Reporting Functions
+
+--- Weather Report. Report pressure QFE/QNH, temperature, wind at certain location.
+-- @param #PSEUDOATC self
+-- @param #number id Group id to which the report is delivered.
+-- @param Core.Point#COORDINATE position Coordinates at which the pressure is measured.
+-- @param #string location Name of the location at which the pressure is measured.
+function PSEUDOATC:ReportWeather(id, position, location)
+  self:F({id=id, position=position, location=location})
+  
+  -- Player unit system settings.
+  local settings=_DATABASE:GetPlayerSettings(self.player[id].playername) or _SETTINGS --Core.Settings#SETTINGS
+  
+  local text=string.format("Local weather at %s:\n", location)
+   
+  -- Get pressure in hPa.  
+  local Pqnh=position:GetPressure(0)  -- Get pressure at sea level.
+  local Pqfe=position:GetPressure()   -- Get pressure at (land) height of position.
+  
+  -- Pressure conversion
+  local hPa2inHg=0.0295299830714
+  local hPa2mmHg=0.7500615613030
+  
+  -- Unit conversion.
+  local _Pqnh=string.format("%.2f inHg", Pqnh * hPa2inHg)
+  local _Pqfe=string.format("%.2f inHg", Pqfe * hPa2inHg)
+  if settings:IsMetric() then
+    _Pqnh=string.format("%.1f mmHg", Pqnh * hPa2mmHg)
+    _Pqfe=string.format("%.1f mmHg", Pqfe * hPa2mmHg)
+  end  
+ 
+  -- Message text. 
+  text=text..string.format("QFE %.1f hPa = %s.\n", Pqfe, _Pqfe)
+  text=text..string.format("QNH %.1f hPa = %s.\n", Pqnh, _Pqnh)
+  
+  -- Get temperature at position in degrees Celsius. 
+  local T=position:GetTemperature()
+    
+  -- Correct unit system.
+  local _T=string.format('%d°F', UTILS.CelciusToFarenheit(T))
+  if settings:IsMetric() then
+    _T=string.format('%d°C', T)
+  end
+  
+  -- Message text.  
+  local text=text..string.format("Temperature %s\n", _T)
+  
+  -- Get wind direction and speed.
+  local Dir,Vel=position:GetWind()
+  
+  -- Get Beaufort wind scale.
+  local Bn,Bd=UTILS.BeaufortScale(Vel)
+  
+  -- Formatted wind direction.
+  local Ds = string.format('%03d°', Dir)
+    
+  -- Velocity in player units.
+  local Vs=string.format("%.1f knots", UTILS.MpsToKnots(Vel))
+  if settings:IsMetric() then
+    Vs=string.format('%.1f m/s', Vel)  
+  end  
+  
+  -- Message text.
+  local text=text..string.format("Wind from %s at %s (%s).", Ds, Vs, Bd)
+  
+  -- Send message
+  self:_DisplayMessageToGroup(self.player[id].unit, text, self.mdur, true)
+  
+end
+
+--- Report absolute bearing and range form player unit to airport.
+-- @param #PSEUDOATC self
+-- @param #number id Group id to the report is delivered.
+-- @param Core.Point#COORDINATE position Coordinates at which the pressure is measured.
+-- @param #string location Name of the location at which the pressure is measured.
+function PSEUDOATC:ReportBR(id, position, location)
+  self:F({id=id, position=position, location=location})
+
+  -- Current coordinates.
+  local unit=self.player[id].unit --Wrapper.Unit#UNIT
+  local coord=unit:GetCoordinate()
+  
+  -- Direction vector from current position (coord) to target (position).
+  local pos=coord:Translate(30,90)
+  local vec3=coord:GetDirectionVec3(pos)
+  local angle=coord:GetAngleDegrees(vec3)
+  local range=coord:Get2DDistance(position)
+  
+  -- Bearing string.
+  local Bs=string.format('%03d°', angle)
+  
+  -- Settings.
+  local settings=_DATABASE:GetPlayerSettings(self.player[id].playername) or _SETTINGS --Core.Settings#SETTINGS
+  
+  
+  local Rs=string.format("%.1f NM", UTILS.MetersToNM(range))
+  if settings:IsMetric() then
+    Rs=string.format("%.1f km", range/1000)  
+  end
+
+  -- Message text.
+  local text=string.format("%s: Bearing %s, Range %s.", location, Bs, Rs)
+
+  -- Send message to player group.  
+  MESSAGE:New(text, self.mdur):ToGroup(self.player[id].group)      
+end
+
+--- Report altitude above ground level of player unit.
+-- @param #PSEUDOATC self
+-- @param #number id Group id to the report is delivered.
+-- @param #number dt (Optional) Duration the message is displayed.
+-- @param #boolean _clear (Optional) Clear previouse messages. 
+-- @return #number Altitude above ground.
+function PSEUDOATC:ReportHeight(id, dt, _clear)
+  self:F({id=id, dt=dt})
+
+  local dt = dt or self.mdur
+  if _clear==nil then
+    _clear=false
+  end
+
+  -- Return height [m] above ground level.
+  local function get_AGL(p)
+    local agl=0
+    local vec2={x=p.x,y=p.z}
+    local ground=land.getHeight(vec2)
+    local agl=p.y-ground
+    return agl
+  end
+
+  -- Get height AGL.
+  local unit=self.player[id].unit --Wrapper.Unit#UNIT
+  
+  if unit and unit:IsAlive() then
+  
+    local position=unit:GetCoordinate()
+    local height=get_AGL(position)
+    local callsign=unit:GetCallsign()
+    
+    -- Settings.
+    local settings=_DATABASE:GetPlayerSettings(self.player[id].playername) or _SETTINGS --Core.Settings#SETTINGS
+    
+    -- Height string.
+    local Hs=string.format("%d ft", UTILS.MetersToFeet(height))
+    if settings:IsMetric() then
+      Hs=string.format("%d m", height)
+    end
+    
+    -- Message text.
+    local _text=string.format("%s, your altitude is %s AGL.", callsign, Hs)
+    
+    -- Append flight level.
+    if _clear==false then
+      _text=_text..string.format(" FL%03d.", position.y/30.48)
+    end
+    
+    -- Send message to player group.  
+    self:_DisplayMessageToGroup(self.player[id].unit,_text, dt,_clear)
+    
+    -- Return height
+    return height
+  end
+  
+  return 0        
+end
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- Toggle report altitude reporting on/off.
+-- @param #PSEUDOATC self.
+-- @param #number id Group id of player unit. 
+function PSEUDOATC:AltidudeTimerToggle(id)
+  self:F(id)
+  
+  if self.player[id].altimerid then
+    -- If the timer is on, we turn it off.
+    self:AltitudeTimerStop(id)
+  else
+    -- If the timer is off, we turn it on.
+    self:AltitudeTimeStart(id)
+  end
+end
+
+--- Start altitude reporting scheduler.
+-- @param #PSEUDOATC self.
+-- @param #number id Group id of player unit. 
+function PSEUDOATC:AltitudeTimeStart(id)
+  self:F(id)
+  
+  -- Debug info.
+  self:T(PSEUDOATC.id..string.format("Starting altitude report timer for player ID %d.", id))
+  
+  -- Start timer. Altitude is reported every ~3 seconds.
+  self.player[id].altimer, self.player[id].altimerid=SCHEDULER:New(nil, self.ReportHeight, {self, id, 0.1, true}, 1, 3)
+end
+
+--- Stop/destroy DCS scheduler function for reporting altitude.
+-- @param #PSEUDOATC self.
+-- @param #number id Group id of player unit. 
+function PSEUDOATC:AltitudeTimerStop(id)
+
+  -- Debug info.
+  self:T(PSEUDOATC.id..string.format("Stopping altitude report timer for player ID %d.", id))
+  
+  -- Stop timer.
+  if self.player[id].altimerid then
+    self.player[id].altimer:Stop(self.player[id].altimerid)
+  end
+  
+  self.player[id].altimer=nil
+  self.player[id].altimerid=nil
+end
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Misc
+
+--- Create list of nearby airports sorted by distance to player unit.
+-- @param #PSEUDOATC self
+-- @param #number id Group id of player unit.
+function PSEUDOATC:LocalAirports(id)
+  self:F(id)
+
+  -- Airports table.  
+  self.player[id].airports=nil
+  self.player[id].airports={}
+  
+  -- Current player position.
+  local pos=self.player[id].unit:GetCoordinate()
+  
+  -- Loop over coalitions.
+  for i=0,2 do
+    
+    -- Get all airbases of coalition.
+    local airports=coalition.getAirbases(i)
+    
+    -- Loop over airbases
+    for _,airbase in pairs(airports) do
+    
+      local name=airbase:getName()
+      local q=AIRBASE:FindByName(name):GetCoordinate()
+      local d=q:Get2DDistance(pos)
+      
+      -- Add to table.
+      table.insert(self.player[id].airports, {distance=d, name=name})
+      
+    end
+  end
+  
+  --- compare distance (for sorting airports)
+  local function compare(a,b)
+    return a.distance < b.distance
+  end
+  
+  -- Sort airports table w.r.t. distance to player.
+  table.sort(self.player[id].airports, compare)
+  
+end
+
+--- Returns the unit of a player and the player name. If the unit does not belong to a player, nil is returned. 
+-- @param #PSEUDOATC self
+-- @param #string _unitName Name of the player unit.
+-- @return Wrapper.Unit#UNIT Unit of player.
+-- @return #string Name of the player.
+-- @return nil If player does not exist.
+function PSEUDOATC:_GetPlayerUnitAndName(_unitName)
+  self:F(_unitName)
+
+  if _unitName ~= nil then
+  
+    -- Get DCS unit from its name.
+    local DCSunit=Unit.getByName(_unitName)
+    if DCSunit then
+    
+      -- Get the player name to make sure a player entered.  
+      local playername=DCSunit:getPlayerName()
+      local unit=UNIT:Find(DCSunit)
+      
+      -- Debug output.
+      self:T2({DCSunit=DCSunit, unit=unit, playername=playername})
+      
+      if unit and playername then        
+        -- Return MOOSE unit and player name
+        return unit, playername
+      end
+      
+    end    
+  end
+    
+  return nil,nil
+end
+
+
+--- Display message to group.
+-- @param #PSEUDOATC self
+-- @param Wrapper.Unit#UNIT _unit Player unit.
+-- @param #string _text Message text.
+-- @param #number _time Duration how long the message is displayed.
+-- @param #boolean _clear Clear up old messages.
+function PSEUDOATC:_DisplayMessageToGroup(_unit, _text, _time, _clear)
+  self:F({unit=_unit, text=_text, time=_time, clear=_clear})
+  
+  _time=_time or self.Tmsg
+  if _clear==nil then
+    _clear=false
+  end
+  
+  -- Group ID.
+  local _gid=_unit:GetGroup():GetID()
+  
+  if _gid then
+    if _clear == true then
+      trigger.action.outTextForGroup(_gid, _text, _time, _clear)
+    else
+      trigger.action.outTextForGroup(_gid, _text, _time)
+    end
+  end
+  
+end
+
+--- Returns a string which consits of this callsign and the player name.  
+-- @param #RANGE self
+-- @param #string unitname Name of the player unit.
+function PSEUDOATC:_myname(unitname)
+  self:F2(unitname)
+  
+  local unit=UNIT:FindByName(unitname)
+  local pname=unit:GetPlayerName()
+  local csign=unit:GetCallsign()
+  
+  return string.format("%s (%s)", csign, pname)
 end
 
 --- **AI** -- (2.1) - Balance player slots with AI to create an engaging simulation environment, independent of the amount of players. 
@@ -63468,6 +69163,7 @@ function AI_CARGO_APC:New( CargoCarrier, CargoSet, CombatRadius )
 
   self:SetCarrier( CargoCarrier )
   self.Transporting = false
+  self.Relocating = false
   
   return self
 end
@@ -63505,7 +69201,7 @@ function AI_CARGO_APC:SetCarrier( CargoCarrier )
       self:F( { OnHitLoaded = AICargoTroops:Is( "Loaded" ) } )
       if AICargoTroops:Is( "Loaded" ) or AICargoTroops:Is( "Boarding" ) then
         -- There are enemies within combat range. Unload the CargoCarrier.
-        AICargoTroops:Unload()
+        AICargoTroops:Unload( false )
       end
     end
   end
@@ -63524,6 +69220,11 @@ end
 function AI_CARGO_APC:IsTransporting()
 
   return self.Transporting == true
+end
+
+function AI_CARGO_APC:IsRelocating()
+
+  return self.Relocating == true
 end
 
 --- Find a free Carrier within a range.
@@ -63615,7 +69316,7 @@ function AI_CARGO_APC:onafterMonitor( APC, From, Event, To )
 
   if APC and APC:IsAlive() then
     if self.CarrierCoordinate then
-      if self:IsTransporting() then
+      if self:IsRelocating() == true then
         local Coordinate = APC:GetCoordinate()
         self.Zone:Scan( { Object.Category.UNIT } )
         if self.Zone:IsAllInZoneOfCoalition( self.Coalition ) then
@@ -63626,7 +69327,7 @@ function AI_CARGO_APC:onafterMonitor( APC, From, Event, To )
         else
           if self:Is( "Loaded" ) then
             -- There are enemies within combat range. Unload the CargoCarrier.
-            self:__Unload( 1 )
+            self:__Unload( 1, false )
           else
             if self:Is( "Unloaded" ) then
               self:Follow()
@@ -63676,8 +69377,8 @@ function AI_CARGO_APC:onbeforeLoad( APC, From, Event, To )
       local APCUnit = APCUnit -- Wrapper.Unit#UNIT
       for _, Cargo in pairs( self.CargoSet:GetSet() ) do
         local Cargo = Cargo -- Cargo.Cargo#CARGO
-        self:F( { IsUnLoaded = Cargo:IsUnLoaded(), Cargo:GetName(), APC:GetName() } )
-        if Cargo:IsUnLoaded() then
+        self:F( { IsUnLoaded = Cargo:IsUnLoaded(), IsDeployed = Cargo:IsDeployed(), Cargo:GetName(), APC:GetName() } )
+        if Cargo:IsUnLoaded() and not Cargo:IsDeployed() then
           if Cargo:IsInLoadRadius( APCUnit:GetCoordinate() ) then
             self:F( { "In radius", APCUnit:GetName() } )
             APC:RouteStop()
@@ -63745,8 +69446,8 @@ end
 
 --- @param #AI_CARGO_APC self
 -- @param Wrapper.Group#GROUP APC
-function AI_CARGO_APC:onafterUnload( APC, From, Event, To )
-  self:F( { APC, From, Event, To } )
+function AI_CARGO_APC:onafterUnload( APC, From, Event, To, Deployed )
+  self:F( { APC, From, Event, To, Deployed } )
 
   if APC and APC:IsAlive() then
     for _, APCUnit in pairs( APC:GetUnits() ) do
@@ -63754,7 +69455,7 @@ function AI_CARGO_APC:onafterUnload( APC, From, Event, To )
       APC:RouteStop()
       for _, Cargo in pairs( APCUnit:GetCargo() ) do
         Cargo:UnBoard()
-        self:__Unboard( 10, Cargo )
+        self:__Unboard( 10, Cargo, Deployed )
       end 
     end
   end
@@ -63763,14 +69464,14 @@ end
 
 --- @param #AI_CARGO_APC self
 -- @param Wrapper.Group#GROUP APC
-function AI_CARGO_APC:onafterUnboard( APC, From, Event, To, Cargo )
+function AI_CARGO_APC:onafterUnboard( APC, From, Event, To, Cargo, Deployed )
   self:F( { APC, From, Event, To, Cargo:GetName() } )
 
   if APC and APC:IsAlive() then
     if not Cargo:IsUnLoaded() then
-      self:__Unboard( 10, Cargo ) 
+      self:__Unboard( 10, Cargo, Deployed ) 
     else
-      self:__Unloaded( 1, Cargo )
+      self:__Unloaded( 1, Cargo, Deployed )
     end
   end
   
@@ -63778,8 +69479,8 @@ end
 
 --- @param #AI_CARGO_APC self
 -- @param Wrapper.Group#GROUP APC
-function AI_CARGO_APC:onbeforeUnloaded( APC, From, Event, To, Cargo )
-  self:F( { APC, From, Event, To, Cargo:GetName() } )
+function AI_CARGO_APC:onbeforeUnloaded( APC, From, Event, To, Cargo, Deployed )
+  self:F( { APC, From, Event, To, Cargo:GetName(), Deployed = Deployed } )
 
   local AllUnloaded = true
 
@@ -63799,6 +69500,13 @@ function AI_CARGO_APC:onbeforeUnloaded( APC, From, Event, To, Cargo )
     end
     
     if AllUnloaded == true then
+      if Deployed == true then
+        for APCUnit, Cargo in pairs( self.APC_Cargo ) do
+          local Cargo = Cargo -- Cargo.Cargo#CARGO
+          Cargo:SetDeployed( true )
+        end
+        self.APC_Cargo = {}
+      end
       self:Guard()
       self.CargoCarrier = APC
     end
@@ -63837,7 +69545,7 @@ function AI_CARGO_APC._Pickup( APC, self )
 
   if APC:IsAlive() then
     self:Load()
-    self.Transporting = true
+    self.Relocating = true
   end
 end
 
@@ -63849,9 +69557,9 @@ function AI_CARGO_APC._Deploy( APC, self )
   APC:F( { "AI_CARGO_APC._Deploy:", APC } )
 
   if APC:IsAlive() then
-    self:Unload()
+    self:Unload( true )
     self.Transporting = false
-    self.APC_Cargo = {}
+    self.Relocating = false
   end
 end
 
@@ -63884,6 +69592,8 @@ function AI_CARGO_APC:onafterPickup( APC, From, Event, To, Coordinate, Speed, En
     else
       AI_CARGO_APC._Pickup( APC, self )
     end
+    
+    self.Transporting = true
   end
   
 end
@@ -64835,6 +70545,356 @@ function AI_CARGO_AIRPLANE:Route( Airplane, Airbase, Speed )
   end
   
 end
+--- **AI** -- (R2.4) - Models the intelligent transportation of infantry and other cargo.
+--
+-- ===
+-- 
+-- ### Author: **FlightControl**
+-- 
+-- ===       
+--
+-- @module AI_Cargo_Dispatcher
+
+--- @type AI_CARGO_DISPATCHER
+-- @extends Core.Fsm#FSM_CONTROLLABLE
+
+
+--- # AI\_CARGO\_DISPATCHER class, extends @{Core.Base#BASE}
+-- 
+-- ===
+-- 
+-- AI\_CARGO\_DISPATCHER brings a dynamic cargo handling capability for AI groups.
+-- 
+-- Armoured Personnel APCs (APC), Trucks, Jeeps and other carrier equipment can be mobilized to intelligently transport infantry and other cargo within the simulation.
+-- The AI\_CARGO\_DISPATCHER module uses the @{Cargo} capabilities within the MOOSE framework.
+-- CARGO derived objects must be declared within the mission to make the AI\_CARGO\_DISPATCHER object recognize the cargo.
+-- Please consult the @{Cargo} module for more information. 
+-- 
+-- 
+-- 
+-- @field #AI_CARGO_DISPATCHER
+AI_CARGO_DISPATCHER = {
+  ClassName = "AI_CARGO_DISPATCHER",
+  SetAPC = nil,
+  SetDeployZones = nil,
+  AI_CARGO_APC = {}
+}
+
+--- @type AI_CARGO_DISPATCHER.AI_CARGO_APC
+-- @map <Wrapper.Group#GROUP, AI.AI_Cargo_APC#AI_CARGO_APC>
+
+--- @field #AI_CARGO_DISPATCHER.AI_CARGO_APC 
+AI_CARGO_DISPATCHER.AICargoAPC = {}
+
+--- @field #AI_CARGO_DISPATCHER.PickupCargo
+AI_CARGO_DISPATCHER.PickupCargo = {}
+
+--- Creates a new AI_CARGO_DISPATCHER object.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param Core.Set#SET_GROUP SetAPC
+-- @param Core.Set#SET_CARGO SetCargo
+-- @param Core.Set#SET_ZONE SetDeployZone
+-- @return #AI_CARGO_DISPATCHER
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- SetAPC = SET_GROUP:New():FilterPrefixes( "APC" ):FilterStart()
+-- SetCargo = SET_CARGO:New():FilterTypes( "Infantry" ):FilterStart()
+-- SetDeployZone = SET_ZONE:New():FilterPrefixes( "Deploy" ):FilterStart()
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo )
+-- 
+function AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones )
+
+  local self = BASE:Inherit( self, FSM:New() ) -- #AI_CARGO_DISPATCHER
+
+  self.SetAPC = SetAPC -- Core.Set#SET_GROUP
+  self.SetCargo = SetCargo -- Core.Set#SET_CARGO
+  self.SetDeployZones = SetDeployZones -- Core.Set#SET_ZONE
+
+  self:SetStartState( "APC" ) 
+  
+  self:AddTransition( "*", "Monitor", "*" )
+
+  self:AddTransition( "*", "Pickup", "*" )
+  self:AddTransition( "*", "Loading", "*" )
+  self:AddTransition( "*", "Loaded", "*" )
+
+  self:AddTransition( "*", "Deploy", "*" )
+  self:AddTransition( "*", "Unloading", "*" )
+  self:AddTransition( "*", "Unloaded", "*" )
+  
+  self.MonitorTimeInterval = 120
+  self.CombatRadius = 500
+  self.DeployRadiusInner = 200
+  self.DeployRadiusOuter = 500
+  
+  self:Monitor( 1 )
+  
+  return self
+end
+
+
+--- The Start trigger event, which actually takes action at the specified time interval.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param Wrapper.Group#GROUP APC
+-- @return #AI_CARGO_DISPATCHER
+function AI_CARGO_DISPATCHER:onafterMonitor()
+
+  for APCGroupName, APC in pairs( self.SetAPC:GetSet() ) do
+    local APC = APC -- Wrapper.Group#GROUP
+    local AICargoAPC = self.AICargoAPC[APC]
+    if not AICargoAPC then
+      -- ok, so this APC does not have yet an AI_CARGO_APC object...
+      -- let's create one and also declare the Loaded and UnLoaded handlers.
+      self.AICargoAPC[APC] = AI_CARGO_APC:New( APC, self.SetCargo, self.CombatRadius )
+      AICargoAPC = self.AICargoAPC[APC]
+      
+      function AICargoAPC.OnAfterPickup( AICargoAPC, APC, From, Event, To, Cargo )
+        self:Pickup( APC, Cargo )
+      end
+      
+      function AICargoAPC.OnAfterLoad( AICargoAPC, APC )
+        self:Load( APC )
+      end
+
+      function AICargoAPC.OnAfterLoaded( AICargoAPC, APC, From, Event, To, Cargo )
+        self:Loaded( APC, Cargo )
+      end
+
+      function AICargoAPC.OnAfterDeploy( AICargoAPC, APC )
+        self:Deploy( APC )
+      end      
+
+      function AICargoAPC.OnAfterUnload( AICargoAPC, APC )
+        self:Unload( APC )
+      end      
+
+      function AICargoAPC.OnAfterUnloaded( AICargoAPC, APC )
+        self:Unloaded( APC )
+      end      
+    end
+
+    -- The Pickup sequence ...
+    -- Check if this APC need to go and Pickup something...
+    self:I( { IsTransporting = AICargoAPC:IsTransporting() } )
+    if AICargoAPC:IsTransporting() == false then
+      -- ok, so there is a free APC
+      -- now find the first cargo that is Unloaded
+      
+      local PickupCargo = nil
+      
+      for CargoName, Cargo in pairs( self.SetCargo:GetSet() ) do
+        if Cargo:IsUnLoaded() and not Cargo:IsDeployed() then
+          if not self.PickupCargo[Cargo] then
+            self.PickupCargo[Cargo] = APC
+            PickupCargo = Cargo
+            break
+          end
+        end
+      end
+      if PickupCargo then
+        AICargoAPC:Pickup( PickupCargo:GetCoordinate(), 70 )
+        break
+      end
+    end
+  end
+
+  self:__Monitor( self.MonitorTimeInterval )
+
+  return self
+end
+
+
+
+--- Make a APC run for a cargo deploy action after the cargo Pickup trigger has been initiated, by default.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param Wrapper.Group#GROUP APC
+-- @return #AI_CARGO_DISPATCHER
+function AI_CARGO_DISPATCHER:onafterPickup( From, Event, To, APC, Cargo )
+  return self
+end
+
+--- Make a APC run for a cargo deploy action after the cargo has been loaded, by default.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param Wrapper.Group#GROUP APC
+-- @return #AI_CARGO_DISPATCHER
+function AI_CARGO_DISPATCHER:OnAfterLoaded( From, Event, To, APC, Cargo )
+
+  self:I( { "Loaded Dispatcher", APC } )
+  local RandomZone = self.SetDeployZones:GetRandomZone()
+  self:I( { RandomZone = RandomZone } )
+  
+  self.AICargoAPC[APC]:Deploy( RandomZone:GetCoordinate(), 70 )
+  self.PickupCargo[Cargo] = nil
+
+  return self
+end
+
+
+
+
+--- **AI** -- (R2.4) - Models the intelligent transportation of infantry and other cargo using APCs.
+--
+-- ===
+-- 
+-- ### Author: **FlightControl**
+-- 
+-- ===       
+--
+-- @module AI_Cargo_Dispatcher_APC
+
+--- @type AI_CARGO_DISPATCHER_APC
+-- @extends AI.AI_Cargo_Dispatcher#AI_CARGO_DISPATCHER
+
+
+--- # AI\_CARGO\_DISPATCHER\_APC class, extends @{Core.Base#BASE}
+-- 
+-- ===
+-- 
+-- AI\_CARGO\_DISPATCHER\_APC brings a dynamic cargo handling capability for AI groups.
+-- 
+-- Armoured Personnel APCs (APC), Trucks, Jeeps and other carrier equipment can be mobilized to intelligently transport infantry and other cargo within the simulation.
+-- The AI\_CARGO\_DISPATCHER\_APC module uses the @{Cargo} capabilities within the MOOSE framework.
+-- CARGO derived objects must be declared within the mission to make the AI\_CARGO\_DISPATCHER\_APC object recognize the cargo.
+-- Please consult the @{Cargo} module for more information. 
+-- 
+-- 
+-- 
+-- @field #AI_CARGO_DISPATCHER_APC
+AI_CARGO_DISPATCHER_APC = {
+  ClassName = "AI_CARGO_DISPATCHER_APC",
+}
+
+--- Creates a new AI_CARGO_DISPATCHER_APC object.
+-- @param #AI_CARGO_DISPATCHER_APC self
+-- @param Core.Set#SET_GROUP SetAPC
+-- @param Core.Set#SET_CARGO SetCargo
+-- @param Core.Set#SET_ZONE SetDeployZone
+-- @return #AI_CARGO_DISPATCHER_APC
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- SetAPC = SET_GROUP:New():FilterPrefixes( "APC" ):FilterStart()
+-- SetCargo = SET_CARGO:New():FilterTypes( "Infantry" ):FilterStart()
+-- SetDeployZone = SET_ZONE:New():FilterPrefixes( "Deploy" ):FilterStart()
+-- AICargoDispatcher = AI_CARGO_DISPATCHER_APC:New( SetAPC, SetCargo )
+-- 
+function AI_CARGO_DISPATCHER_APC:New( SetAPC, SetCargo, SetDeployZones )
+
+  local self = BASE:Inherit( self, AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones ) ) -- #AI_CARGO_DISPATCHER_APC
+
+  return self
+end
+
+
+--- **AI** -- (R2.4) - Models the intelligent transportation of infantry and other cargo using Helicopters.
+--
+-- ===
+-- 
+-- ### Author: **FlightControl**
+-- 
+-- ===       
+--
+-- @module AI_Cargo_Dispatcher_Helicopter
+
+--- @type AI_CARGO_DISPATCHER_HELICOPTER
+-- @extends AI.AI_Cargo_Dispatcher#AI_CARGO_DISPATCHER
+
+
+--- # AI\_CARGO\_DISPATCHER\_HELICOPTER class, extends @{Core.Base#BASE}
+-- 
+-- ===
+-- 
+-- AI\_CARGO\_DISPATCHER\_HELICOPTER brings a dynamic cargo handling capability for AI groups.
+-- 
+-- Helicopters can be mobilized to intelligently transport infantry and other cargo within the simulation.
+-- The AI\_CARGO\_DISPATCHER\_HELICOPTER module uses the @{Cargo} capabilities within the MOOSE framework.
+-- CARGO derived objects must be declared within the mission to make the AI\_CARGO\_DISPATCHER\_HELICOPTER object recognize the cargo.
+-- Please consult the @{Cargo} module for more information. 
+-- 
+-- 
+-- 
+-- @field #AI_CARGO_DISPATCHER_HELICOPTER
+AI_CARGO_DISPATCHER_HELICOPTER = {
+  ClassName = "AI_CARGO_DISPATCHER_HELICOPTER",
+}
+
+--- Creates a new AI_CARGO_DISPATCHER_HELICOPTER object.
+-- @param #AI_CARGO_DISPATCHER_HELICOPTER self
+-- @param Core.Set#SET_GROUP SetAPC
+-- @param Core.Set#SET_CARGO SetCargo
+-- @param Core.Set#SET_ZONE SetDeployZone
+-- @return #AI_CARGO_DISPATCHER_HELICOPTER
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- SetHelicopter = SET_GROUP:New():FilterPrefixes( "Helicopter" ):FilterStart()
+-- SetCargo = SET_CARGO:New():FilterTypes( "Infantry" ):FilterStart()
+-- SetDeployZone = SET_ZONE:New():FilterPrefixes( "Deploy" ):FilterStart()
+-- AICargoDispatcher = AI_CARGO_DISPATCHER_HELICOPTER:New( SetHelicopter, SetCargo )
+-- 
+function AI_CARGO_DISPATCHER_HELICOPTER:New( SetHelicopter, SetCargo, SetDeployZones )
+
+  local self = BASE:Inherit( self, AI_CARGO_DISPATCHER:New( SetHelicopter, SetCargo, SetDeployZones ) ) -- #AI_CARGO_DISPATCHER_HELICOPTER
+
+  return self
+end
+
+
+--- **AI** -- (R2.4) - Models the intelligent transportation of infantry and other cargo using Planes.
+--
+-- ===
+-- 
+-- ### Author: **FlightControl**
+-- 
+-- ===       
+--
+-- @module AI_Cargo_Dispatcher_Airplane
+
+--- @type AI_CARGO_DISPATCHER_AIRPLANE
+-- @extends AI.AI_Cargo_Dispatcher#AI_CARGO_DISPATCHER
+
+
+--- # AI\_CARGO\_DISPATCHER\_AIRPLANE class, extends @{Core.Base#BASE}
+-- 
+-- ===
+-- 
+-- AI\_CARGO\_DISPATCHER\_AIRPLANE brings a dynamic cargo handling capability for AI groups.
+-- 
+-- Airplanes can be mobilized to intelligently transport infantry and other cargo within the simulation.
+-- The AI\_CARGO\_DISPATCHER\_AIRPLANE module uses the @{Cargo} capabilities within the MOOSE framework.
+-- CARGO derived objects must be declared within the mission to make the AI\_CARGO\_DISPATCHER\_AIRPLANE object recognize the cargo.
+-- Please consult the @{Cargo} module for more information. 
+-- 
+-- 
+-- 
+-- @field #AI_CARGO_DISPATCHER_AIRPLANE
+AI_CARGO_DISPATCHER_AIRPLANE = {
+  ClassName = "AI_CARGO_DISPATCHER_AIRPLANE",
+}
+
+--- Creates a new AI_CARGO_DISPATCHER_AIRPLANE object.
+-- @param #AI_CARGO_DISPATCHER_AIRPLANE self
+-- @param Core.Set#SET_GROUP SetAirplane
+-- @param Core.Set#SET_CARGO SetCargo
+-- @param Core.Set#SET_ZONE SetDeployZone
+-- @return #AI_CARGO_DISPATCHER_AIRPLANE
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- SetAirplane = SET_GROUP:New():FilterPrefixes( "Airplane" ):FilterStart()
+-- SetCargo = SET_CARGO:New():FilterTypes( "Infantry" ):FilterStart()
+-- SetDeployZone = SET_ZONE:New():FilterPrefixes( "Deploy" ):FilterStart()
+-- AICargoDispatcher = AI_CARGO_DISPATCHER_AIRPLANE:New( SetAirplane, SetCargo )
+-- 
+function AI_CARGO_DISPATCHER_AIRPLANE:New( SetAirplane, SetCargo, SetDeployZones )
+
+  local self = BASE:Inherit( self, AI_CARGO_DISPATCHER:New( SetAirplane, SetCargo, SetDeployZones ) ) -- #AI_CARGO_DISPATCHER_AIRPLANE
+
+  return self
+end
+
+
 --- (SP) (MP) (FSM) Accept or reject process for player (task) assignments.
 -- 
 -- ===
