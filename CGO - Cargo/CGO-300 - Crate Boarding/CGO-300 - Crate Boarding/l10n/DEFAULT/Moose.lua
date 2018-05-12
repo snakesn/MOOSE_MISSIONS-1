@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-10T21:18:37.0000000Z-51d3aca7530e278c1d64775e173489522dd0555b ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-11T19:56:56.0000000Z-ad7c41a2445366ce6a62bf9e1ba1c2eb34c0153f ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -2523,6 +2523,19 @@ SMOKECOLOR = trigger.smokeColor -- #SMOKECOLOR
 -- @field Yellow
 
 FLARECOLOR = trigger.flareColor -- #FLARECOLOR
+
+--- Big smoke preset enum.
+-- @type BIGSMOKEPRESET
+BIGSMOKEPRESET = {
+  SmallSmokeAndFire=0,
+  MediumSmokeAndFire=1,
+  LargeSmokeAndFire=2,
+  HugeSmokeAndFire=3,
+  SmallSmoke=4,
+  MediumSmoke=5,
+  LargeSmoke=6,
+  HugeSmoke=7,
+}
 
 --- Utilities static class.
 -- @type UTILS
@@ -8301,6 +8314,8 @@ function ZONE_BASE:New( ZoneName )
   return self
 end
 
+
+
 --- Returns the name of the zone.
 -- @param #ZONE_BASE self
 -- @return #string The name of the zone.
@@ -9149,6 +9164,17 @@ function ZONE:New( ZoneName )
   return self
 end
 
+--- Find a zone in the _DATABASE using the name of the zone.
+-- @param #ZONE_BASE self
+-- @param #string ZoneName The name of the zone.
+-- @return #ZONE_BASE self
+function ZONE:FindByName( ZoneName )
+  
+  local ZoneFound = _DATABASE:FindZone( ZoneName )
+  return ZoneFound
+end
+
+
 
 --- @type ZONE_UNIT
 -- @field Wrapper.Unit#UNIT ZoneUNIT
@@ -9889,6 +9915,52 @@ function DATABASE:FindAirbase( AirbaseName )
   return AirbaseFound
 end
 
+
+do -- Zones
+
+  --- Finds a @{Zone} based on the zone name.
+  -- @param #DATABASE self
+  -- @param #string ZoneName The name of the zone.
+  -- @return Core.Zone#ZONE_BASE The found ZONE.
+  function DATABASE:FindZone( ZoneName )
+  
+    local ZoneFound = self.ZONES[ZoneName]
+    return ZoneFound
+  end
+  
+  --- Adds a @{Zone} based on the zone name in the DATABASE.
+  -- @param #DATABASE self
+  -- @param #string ZoneName The name of the zone.
+  -- @param Core.Zone#ZONE_BASE Zone The zone.
+  function DATABASE:AddZone( ZoneName, Zone )
+  
+    if not self.ZONES[ZoneName] then
+      self.ZONES[ZoneName] = Zone
+    end
+  end
+  
+  
+  --- Deletes a @{Zone} from the DATABASE based on the zone name.
+  -- @param #DATABASE self
+  -- @param #string ZoneName The name of the zone.
+  function DATABASE:DeleteZone( ZoneName )
+  
+    self.ZONES[ZoneName] = nil 
+  end
+  
+  --- Finds an @{Zone} based on the zone name in the DATABASE.
+  -- @param #DATABASE self
+  -- @param #string ZoneName
+  -- @return Core.Zone#ZONE_BASE The found @{Zone}.
+  function DATABASE:FindZone( ZoneName )
+  
+    local ZoneFound = self.ZONES[ZoneName]
+    return ZoneFound
+  end
+
+
+
+end
 
 
 do -- cargo
@@ -10794,7 +10866,7 @@ function DATABASE:_RegisterTemplates()
   for ZoneID, ZoneData in pairs( env.mission.triggers.zones ) do
     local ZoneName = ZoneData.name
     self.ZONENAMES[ZoneName] = ZoneName
-    self.ZONES[ZoneName] = ZONE:New( ZoneName )
+    self:AddZone( ZoneName, ZONE:New( ZoneName ) )
     self:I( "Added ZONE " .. ZoneName )
   end
 
@@ -16641,6 +16713,88 @@ do -- COORDINATE
     self:F2()
     self:Smoke( SMOKECOLOR.Blue )
   end
+
+  --- Big smoke and fire at the coordinate.
+  -- @param #COORDINATE self
+  -- @param Utilities.Utils#BIGSMOKEPRESET preset Smoke preset (0=small smoke and fire, 1=medium smoke and fire, 2=large smoke and fire, 3=huge smoke and fire, 4=small smoke, 5=medium smoke, 6=large smoke, 7=huge smoke).
+  -- @param #number density (Optional) Smoke density. Number in [0,...,1]. Default 0.5.
+  function COORDINATE:BigSmokeAndFire( preset, density )
+    self:F2( { preset=preset, density=density } )
+    density=density or 0.5
+    trigger.action.effectSmokeBig( self:GetVec3(), preset, density )
+  end
+
+  --- Small smoke and fire at the coordinate.
+  -- @param #COORDINATE self
+  -- @number density (Optional) Smoke density. Number between 0 and 1. Default 0.5.
+  function COORDINATE:BigSmokeAndFireSmall( density )
+    self:F2( { density=density } )
+    density=density or 0.5
+    self:BigSmokeAndFire(BIGSMOKEPRESET.SmallSmokeAndFire, density)
+  end
+
+  --- Medium smoke and fire at the coordinate.
+  -- @param #COORDINATE self
+  -- @number density (Optional) Smoke density. Number between 0 and 1. Default 0.5.
+  function COORDINATE:BigSmokeAndFireMedium( density )
+    self:F2( { density=density } )
+    density=density or 0.5
+    self:BigSmokeAndFire(BIGSMOKEPRESET.MediumSmokeAndFire, density)
+  end
+  
+  --- Large smoke and fire at the coordinate.
+  -- @param #COORDINATE self
+  -- @number density (Optional) Smoke density. Number between 0 and 1. Default 0.5.
+  function COORDINATE:BigSmokeAndFireLarge( density )
+    self:F2( { density=density } )
+    density=density or 0.5
+    self:BigSmokeAndFire(BIGSMOKEPRESET.LargeSmokeAndFire, density)
+  end
+
+  --- Huge smoke and fire at the coordinate.
+  -- @param #COORDINATE self
+  -- @number density (Optional) Smoke density. Number between 0 and 1. Default 0.5.
+  function COORDINATE:BigSmokeAndFireHuge( density )
+    self:F2( { density=density } )
+    density=density or 0.5
+    self:BigSmokeAndFire(BIGSMOKEPRESET.HugeSmokeAndFire, density)
+  end
+  
+  --- Small smoke at the coordinate.
+  -- @param #COORDINATE self
+  -- @number density (Optional) Smoke density. Number between 0 and 1. Default 0.5.
+  function COORDINATE:BigSmokeSmall( density )
+    self:F2( { density=density } )
+    density=density or 0.5
+    self:BigSmokeAndFire(BIGSMOKEPRESET.SmallSmoke, density)
+  end
+  
+  --- Medium smoke at the coordinate.
+  -- @param #COORDINATE self
+  -- @number density (Optional) Smoke density. Number between 0 and 1. Default 0.5.
+  function COORDINATE:BigSmokeMedium( density )
+    self:F2( { density=density } )
+    density=density or 0.5
+    self:BigSmokeAndFire(BIGSMOKEPRESET.MediumSmoke, density)
+  end
+
+  --- Large smoke at the coordinate.
+  -- @param #COORDINATE self
+  -- @number density (Optional) Smoke density. Number between 0 and 1. Default 0.5.
+  function COORDINATE:BigSmokeLarge( density )
+    self:F2( { density=density } )
+    density=density or 0.5
+    self:BigSmokeAndFire(BIGSMOKEPRESET.LargeSmoke, density)
+  end
+  
+  --- Huge smoke at the coordinate.
+  -- @param #COORDINATE self
+  -- @number density (Optional) Smoke density. Number between 0 and 1. Default 0.5.
+  function COORDINATE:BigSmokeHuge( density )
+    self:F2( { density=density } )
+    density=density or 0.5
+    self:BigSmokeAndFire(BIGSMOKEPRESET.HugeSmoke, density)
+  end  
 
   --- Flares the point in a color.
   -- @param #COORDINATE self
@@ -25095,15 +25249,16 @@ end
 -- @param #CONTROLLABLE self
 -- @param #number Altitude The altitude to hold the position.
 -- @param #number Speed The speed flying when holding the position.
+-- @param Core.Point#COORDINATE Coordinate The coordinate where to orbit.
 -- @return #CONTROLLABLE self
-function CONTROLLABLE:TaskOrbitCircle( Altitude, Speed )
+function CONTROLLABLE:TaskOrbitCircle( Altitude, Speed, Coordinate )
   self:F2( { self.ControllableName, Altitude, Speed } )
 
   local DCSControllable = self:GetDCSObject()
 
   if DCSControllable then
-    local ControllablePoint = self:GetVec2()
-    return self:TaskOrbitCircleAtVec2( ControllablePoint, Altitude, Speed )
+    local OrbitVec2 = Coordinate and Coordinate:GetVec2() or self:GetVec2()
+    return self:TaskOrbitCircleAtVec2( OrbitVec2, Altitude, Speed )
   end
 
   return nil
@@ -33378,6 +33533,36 @@ do -- CARGO_GROUP
     
     return nil
   end
+
+  --- Get the x position of the cargo.
+  -- @param #CARGO_GROUP self
+  -- @return #number
+  function CARGO:GetX()
+
+    local Cargo = self:GetFirstAlive() -- Cargo.Cargo#CARGO
+
+    if Cargo then
+      return Cargo:GetCoordinate().x
+    end 
+    
+    return nil
+  end
+  
+  --- Get the y position of the cargo.
+  -- @param #CARGO_GROUP self
+  -- @return #number
+  function CARGO:GetY()
+
+    local Cargo = self:GetFirstAlive() -- Cargo.Cargo#CARGO
+
+    if Cargo then
+      return Cargo:GetCoordinate().z
+    end
+    
+    return nil 
+  end
+  
+
 
   --- Check if the CargoGroup is alive.
   -- @param #CARGO_GROUP self
@@ -54787,9 +54972,9 @@ function ARTY:_OnEventShot(EventData)
         self.Nshots=self.Nshots+1
         
         -- Debug output.
-        local text=string.format("Group %s fired shot %d of %d with weapon %s on target %s.", self.Controllable:GetName(), self.Nshots, self.currentTarget.nshells, _weaponName, self.currentTarget.name)
+        local text=string.format("%s, fired shot %d of %d with weapon %s on target %s.", self.Controllable:GetName(), self.Nshots, self.currentTarget.nshells, _weaponName, self.currentTarget.name)
         self:T(ARTY.id..text)
-        MESSAGE:New(text, 5):ToAllIf(self.Debug)
+        MESSAGE:New(text, 5):ToAllIf(self.report or self.Debug)
         
         -- Get current ammo.
         local _nammo,_nshells,_nrockets,_nmissiles=self:GetAmmo()
@@ -69081,6 +69266,7 @@ function AI_CARGO_APC:New( CargoCarrier, CargoSet, CombatRadius )
   self:AddTransition( "*", "Monitor", "*" )
   self:AddTransition( "*", "Follow", "Following" )
   self:AddTransition( "*", "Guard", "Unloaded" )
+  self:AddTransition( "*", "Home", "*" )
   
   self:AddTransition( "*", "Destroyed", "Destroyed" )
 
@@ -69573,14 +69759,14 @@ end
 -- @param Core.Point#COORDINATE Coordinate
 -- @param #number Speed
 -- @param #string EndPointFormation The formation at the end point of the action.
-function AI_CARGO_APC:onafterPickup( APC, From, Event, To, Coordinate, Speed, EndPointFormation )
+function AI_CARGO_APC:onafterPickup( APC, From, Event, To, Coordinate )
 
   if APC and APC:IsAlive() then
 
     if Coordinate then
       self.RoutePickup = true
       
-      local Waypoints = APC:TaskGroundOnRoad( Coordinate, Speed, EndPointFormation )
+      local Waypoints = APC:TaskGroundOnRoad( Coordinate, 150, "Line abreast" )
   
       local TaskFunction = APC:TaskFunction( "AI_CARGO_APC._Pickup", self )
       
@@ -69607,13 +69793,13 @@ end
 -- @param Core.Point#COORDINATE Coordinate
 -- @param #number Speed
 -- @param #string EndPointFormation The formation at the end point of the action.
-function AI_CARGO_APC:onafterDeploy( APC, From, Event, To, Coordinate, Speed, EndPointFormation )
+function AI_CARGO_APC:onafterDeploy( APC, From, Event, To, Coordinate )
 
   if APC and APC:IsAlive() then
 
     self.RouteDeploy = true
      
-    local Waypoints = APC:TaskGroundOnRoad( Coordinate, Speed, EndPointFormation )
+    local Waypoints = APC:TaskGroundOnRoad( Coordinate, 150, "Line abreast" )
 
     local TaskFunction = APC:TaskFunction( "AI_CARGO_APC._Deploy", self )
     
@@ -69626,6 +69812,30 @@ function AI_CARGO_APC:onafterDeploy( APC, From, Event, To, Coordinate, Speed, En
   
 end
 
+
+--- @param #AI_CARGO_HELICOPTER self
+-- @param Wrapper.Group#GROUP APC
+-- @param From
+-- @param Event
+-- @param To
+-- @param Core.Point#COORDINATE Coordinate
+-- @param #number Speed
+function AI_CARGO_APC:onafterHome( APC, From, Event, To, Coordinate )
+
+  if APC and APC:IsAlive() ~= nil then
+
+    self.RouteHome = true
+     
+    local Waypoints = APC:TaskGroundOnRoad( Coordinate, 120, "Line abreast" )
+
+    self:F({Waypoints = Waypoints})
+    local Waypoint = Waypoints[#Waypoints]
+  
+    APC:Route( Waypoints, 1 ) -- Move after a random seconds to the Route. See the Route method for details.
+    
+  end
+  
+end
 --- **AI** -- (R2.3) - Models the intelligent transportation of infantry (cargo).
 --
 -- ===
@@ -69650,6 +69860,8 @@ AI_CARGO_HELICOPTER = {
   Coordinate = nil -- Core.Point#COORDINATE,
 }
 
+AI_CARGO_HELICOPTER_QUEUE = {}
+
 --- Creates a new AI_CARGO_HELICOPTER object.
 -- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
@@ -69661,6 +69873,8 @@ function AI_CARGO_HELICOPTER:New( Helicopter, CargoSet )
   local self = BASE:Inherit( self, FSM_CONTROLLABLE:New() ) -- #AI_CARGO_HELICOPTER
 
   self.CargoSet = CargoSet -- Cargo.CargoGroup#CARGO_GROUP
+  
+  self.Zone = ZONE_GROUP:New( Helicopter:GetName(), Helicopter, 300 )
 
   self:SetStartState( "Unloaded" ) 
   
@@ -69675,6 +69889,9 @@ function AI_CARGO_HELICOPTER:New( Helicopter, CargoSet )
   self:AddTransition( "Unboarding", "Unloaded", "Unloaded" )
 
   self:AddTransition( "*", "Landed", "*" )
+  self:AddTransition( "*", "Queue", "*" )
+  self:AddTransition( "*", "Orbit" , "*" ) 
+  self:AddTransition( "*", "Home" , "*" ) 
   
   self:AddTransition( "*", "Destroyed", "Destroyed" )
 
@@ -69835,8 +70052,6 @@ function AI_CARGO_HELICOPTER:onafterLanded( Helicopter, From, Event, To )
   
 end
 
-
-
 --- @param #AI_CARGO_HELICOPTER self
 -- @param Wrapper.Group#GROUP Helicopter
 -- @param From
@@ -69844,57 +70059,81 @@ end
 -- @param To
 -- @param Core.Point#COORDINATE Coordinate
 -- @param #number Speed
-function AI_CARGO_HELICOPTER:onafterPickup( Helicopter, From, Event, To, Coordinate, Speed )
+function AI_CARGO_HELICOPTER:onafterQueue( Helicopter, From, Event, To, Coordinate )
 
-  if Helicopter and Helicopter:IsAlive() ~= nil then
+  local HelicopterInZone = false
 
-    Helicopter:Activate()
-
-    self.RoutePickup = true
-     
-    local Route = {}
-    
-    --- Calculate the target route point.
-    --local CoordinateFrom = Helicopter:GetCoordinate()
-    local CoordinateTo   = Coordinate
-
-    --- Create a route point of type air.
---    local WaypointFrom = CoordinateFrom:WaypointAir( 
---      "RADIO", 
---      POINT_VEC3.RoutePointType.TurningPoint, 
---      POINT_VEC3.RoutePointAction.TurningPoint, 
---      Speed, 
---      true 
---    )
-
-    --- Create a route point of type air.
-    local WaypointTo = CoordinateTo:WaypointAir( 
-      "RADIO", 
-      POINT_VEC3.RoutePointType.TurningPoint, 
-      POINT_VEC3.RoutePointAction.TurningPoint, 
-      Speed, 
-      true 
-    )
-
---    Route[#Route+1] = WaypointFrom
-    Route[#Route+1] = WaypointTo
-    
-    --- Now we're going to do something special, we're going to call a function from a waypoint action at the AIControllable...
-    Helicopter:WayPointInitialize( Route )
+  --- @param Wrapper.Unit#UNIT ZoneUnit
+  local function EvaluateZone( ZoneUnit )
   
-    local Tasks = {}
+    if ZoneUnit:IsAlive() then
+      local ZoneUnitCategory =  ZoneUnit:GetDesc().category
+      local ZoneGroup = ZoneUnit:GetGroup()
+      if ZoneUnitCategory == Unit.Category.HELICOPTER then
+        local State =  ZoneGroup:GetState( ZoneGroup, "Landing" )
+        self:F({ZoneUnit=ZoneUnit:GetName(), State=State, UnitCategory = Unit.Category.HELICOPTER } )
+        if State == true then
+          HelicopterInZone = true
+          return false
+        end
+      end
+    end
     
-    Tasks[#Tasks+1] = Helicopter:TaskLandAtVec2( CoordinateTo:GetVec2() )
-    Route[#Route].task = Helicopter:TaskCombo( Tasks )
-
-    Route[#Route+1] = WaypointTo
-
-    -- Now route the helicopter
-    Helicopter:Route( Route, 1 )
-
-    self.Transporting = true
+    return true
   end
-  
+
+  if Helicopter and Helicopter:IsAlive() then
+    
+    local Distance = Coordinate:DistanceFromPointVec2( Helicopter:GetCoordinate() )
+    
+    if Distance > 300 then
+      self:__Queue( -10, Coordinate )
+    else
+    
+      -- This will search the zone and will call the local function "EvaluateZone", which passes a UNIT object.
+      local Zone = ZONE_RADIUS:New( "Deploy", Coordinate:GetVec2(), 300 )
+      Zone:SearchZone( EvaluateZone )
+      
+      self:F({HelicopterInZone=HelicopterInZone})
+      
+      if HelicopterInZone == false then
+     
+        Helicopter:SetState( Helicopter, "Landing", true )
+        
+        local Route = {}
+        
+--          local CoordinateFrom = Helicopter:GetCoordinate()
+--          local WaypointFrom = CoordinateFrom:WaypointAir( 
+--            "RADIO", 
+--            POINT_VEC3.RoutePointType.TurningPoint, 
+--            POINT_VEC3.RoutePointAction.TurningPoint, 
+--            Speed, 
+--            true 
+--          )
+--          Route[#Route+1] = WaypointFrom
+        local CoordinateTo   = Coordinate
+        local WaypointTo = CoordinateTo:WaypointAir( 
+          "RADIO", 
+          POINT_VEC3.RoutePointType.TurningPoint, 
+          POINT_VEC3.RoutePointAction.TurningPoint, 
+          50, 
+          true 
+        )
+        Route[#Route+1] = WaypointTo
+        
+        local Tasks = {}
+        Tasks[#Tasks+1] = Helicopter:TaskLandAtVec2( CoordinateTo:GetVec2() )
+        Route[#Route].task = Helicopter:TaskCombo( Tasks )
+    
+        Route[#Route+1] = WaypointTo
+    
+        -- Now route the helicopter
+        Helicopter:Route( Route, 0 )
+      else
+        self:__Queue( -10, Coordinate )
+      end
+    end
+  end
 end
 
 
@@ -69905,54 +70144,46 @@ end
 -- @param To
 -- @param Core.Point#COORDINATE Coordinate
 -- @param #number Speed
-function AI_CARGO_HELICOPTER:onafterDeploy( Helicopter, From, Event, To, Coordinate, Speed )
+function AI_CARGO_HELICOPTER:onafterOrbit( Helicopter, From, Event, To, Coordinate )
 
-  if Helicopter and Helicopter:IsAlive() ~= nil then
-
-    self.RouteDeploy = true
-     
-    local Route = {}
+  if Helicopter and Helicopter:IsAlive() then
     
-    --- Calculate the target route point.
---    local CoordinateFrom = Helicopter:GetCoordinate()
-    local CoordinateTo   = Coordinate
-
-    --- Create a route point of type air.
---    local WaypointFrom = CoordinateFrom:WaypointAir( 
---      "RADIO", 
---      POINT_VEC3.RoutePointType.TurningPoint, 
---      POINT_VEC3.RoutePointAction.TurningPoint, 
---      Speed, 
---      true 
---    )
-
-    --- Create a route point of type air.
-    local WaypointTo = CoordinateTo:WaypointAir( 
-      "RADIO", 
-      POINT_VEC3.RoutePointType.TurningPoint, 
-      POINT_VEC3.RoutePointAction.TurningPoint, 
-      Speed, 
-      true 
-    )
-
---    Route[#Route+1] = WaypointFrom
-    Route[#Route+1] = WaypointTo
+    Helicopter:ClearState( Helicopter, "Landing" )
     
-    --- Now we're going to do something special, we're going to call a function from a waypoint action at the AIControllable...
-    Helicopter:WayPointInitialize( Route )
+    if not self:IsTransporting() then
+      local Route = {}
+      
+  --          local CoordinateFrom = Helicopter:GetCoordinate()
+  --          local WaypointFrom = CoordinateFrom:WaypointAir( 
+  --            "RADIO", 
+  --            POINT_VEC3.RoutePointType.TurningPoint, 
+  --            POINT_VEC3.RoutePointAction.TurningPoint, 
+  --            Speed, 
+  --            true 
+  --          )
+  --          Route[#Route+1] = WaypointFrom
+      local CoordinateTo   = Coordinate
+      local WaypointTo = CoordinateTo:WaypointAir( 
+        "RADIO", 
+        POINT_VEC3.RoutePointType.TurningPoint, 
+        POINT_VEC3.RoutePointAction.TurningPoint, 
+        50, 
+        true 
+      )
+      Route[#Route+1] = WaypointTo
+      
+      local Tasks = {}
+      Tasks[#Tasks+1] = Helicopter:TaskOrbitCircle( math.random( 30, 80 ), 0, CoordinateTo:GetRandomCoordinateInRadius( 800, 500 ) )
+      Route[#Route].task = Helicopter:TaskCombo( Tasks )
   
-    local Tasks = {}
-    
-    Tasks[#Tasks+1] = Helicopter:TaskLandAtVec2( CoordinateTo:GetVec2() )
-    Route[#Route].task = Helicopter:TaskCombo( Tasks )
-
-    Route[#Route+1] = WaypointTo
-
-    -- Now route the helicopter
-    Helicopter:Route( Route, 1 )
+      Route[#Route+1] = WaypointTo
+  
+      -- Now route the helicopter
+      Helicopter:Route( Route, 0 )
+    end
   end
-  
 end
+
 
 
 --- @param #AI_CARGO_HELICOPTER self
@@ -70103,6 +70334,205 @@ function AI_CARGO_HELICOPTER:onbeforeUnloaded( Helicopter, From, Event, To, Carg
   
 end
 
+--- @param #AI_CARGO_HELICOPTER self
+-- @param Wrapper.Group#GROUP Helicopter
+function AI_CARGO_HELICOPTER:onafterUnloaded( Helicopter, From, Event, To, Cargo, Deployed )
+
+   self:Orbit( Helicopter:GetCoordinate(), 50 )
+
+end
+
+--- @param #AI_CARGO_HELICOPTER self
+-- @param Wrapper.Group#GROUP Helicopter
+-- @param From
+-- @param Event
+-- @param To
+-- @param Core.Point#COORDINATE Coordinate
+-- @param #number Speed
+function AI_CARGO_HELICOPTER:onafterPickup( Helicopter, From, Event, To, Coordinate )
+
+  if Helicopter and Helicopter:IsAlive() ~= nil then
+
+    self:ScheduleOnce( 10, Helicopter.ClearState, Helicopter, Helicopter, "Landing" )
+    Helicopter:Activate()
+
+    self.RoutePickup = true
+    Coordinate.y = math.random( 50, 200 )        
+     
+    local Route = {}
+    
+    --- Calculate the target route point.
+    local CoordinateFrom = Helicopter:GetCoordinate()
+    local CoordinateTo   = Coordinate
+
+    --- Create a route point of type air.
+    local WaypointFrom = CoordinateFrom:WaypointAir( 
+      "RADIO", 
+      POINT_VEC3.RoutePointType.TurningPoint, 
+      POINT_VEC3.RoutePointAction.TurningPoint, 
+      150, 
+      true 
+    )
+
+    --- Create a route point of type air.
+    local WaypointTo = CoordinateTo:WaypointAir( 
+      "RADIO", 
+      POINT_VEC3.RoutePointType.TurningPoint, 
+      POINT_VEC3.RoutePointAction.TurningPoint, 
+      150, 
+      true 
+    )
+
+    Route[#Route+1] = WaypointFrom
+    Route[#Route+1] = WaypointTo
+    
+    --- Now we're going to do something special, we're going to call a function from a waypoint action at the AIControllable...
+    Helicopter:WayPointInitialize( Route )
+  
+    local Tasks = {}
+    
+    Tasks[#Tasks+1] = Helicopter:TaskLandAtVec2( CoordinateTo:GetVec2() )
+    Route[#Route].task = Helicopter:TaskCombo( Tasks )
+
+    Route[#Route+1] = WaypointTo
+
+    -- Now route the helicopter
+    Helicopter:Route( Route, 1 )
+
+    self.Transporting = true
+  end
+  
+end
+
+
+function AI_CARGO_HELICOPTER:_Deploy( AICargoHelicopter, Coordinate )
+  AICargoHelicopter:__Queue( -10, Coordinate, 100 )
+end
+
+--- @param #AI_CARGO_HELICOPTER self
+-- @param Wrapper.Group#GROUP Helicopter
+-- @param From
+-- @param Event
+-- @param To
+-- @param Core.Point#COORDINATE Coordinate
+-- @param #number Speed
+function AI_CARGO_HELICOPTER:onafterDeploy( Helicopter, From, Event, To, Coordinate )
+
+  if Helicopter and Helicopter:IsAlive() ~= nil then
+
+    self.RouteDeploy = true
+
+     
+    local Route = {}
+    
+    --- Calculate the target route point.
+
+    Coordinate.y = math.random( 50, 200 )        
+
+    --- Create a route point of type air.
+    local CoordinateFrom = Helicopter:GetCoordinate()
+    local WaypointFrom = CoordinateFrom:WaypointAir( 
+      "RADIO", 
+      POINT_VEC3.RoutePointType.TurningPoint, 
+      POINT_VEC3.RoutePointAction.TurningPoint, 
+      150, 
+      true 
+    )
+    Route[#Route+1] = WaypointFrom
+    Route[#Route+1] = WaypointFrom
+
+    --- Create a route point of type air.
+    local CoordinateTo   = Coordinate
+    local WaypointTo = CoordinateTo:WaypointAir( 
+      "RADIO", 
+      POINT_VEC3.RoutePointType.TurningPoint, 
+      POINT_VEC3.RoutePointAction.TurningPoint, 
+      150, 
+      true 
+    )
+
+    Route[#Route+1] = WaypointTo
+    Route[#Route+1] = WaypointTo
+    
+    --- Now we're going to do something special, we're going to call a function from a waypoint action at the AIControllable...
+    Helicopter:WayPointInitialize( Route )
+  
+    local Tasks = {}
+    
+    Tasks[#Tasks+1] = Helicopter:TaskFunction( "AI_CARGO_HELICOPTER._Deploy", self, Coordinate )
+    Tasks[#Tasks+1] = Helicopter:TaskOrbitCircle( math.random( 30, 100 ), 0, CoordinateTo:GetRandomCoordinateInRadius( 800, 500 ) )
+    
+    --Tasks[#Tasks+1] = Helicopter:TaskLandAtVec2( CoordinateTo:GetVec2() )
+    Route[#Route].task = Helicopter:TaskCombo( Tasks )
+
+    Route[#Route+1] = WaypointTo
+
+    -- Now route the helicopter
+    Helicopter:Route( Route, 1 )
+    
+  end
+  
+end
+
+
+--- @param #AI_CARGO_HELICOPTER self
+-- @param Wrapper.Group#GROUP Helicopter
+-- @param From
+-- @param Event
+-- @param To
+-- @param Core.Point#COORDINATE Coordinate
+-- @param #number Speed
+function AI_CARGO_HELICOPTER:onafterHome( Helicopter, From, Event, To, Coordinate )
+
+  if Helicopter and Helicopter:IsAlive() ~= nil then
+
+    self.RouteHome = true
+     
+    local Route = {}
+    
+    --- Calculate the target route point.
+
+    Coordinate.y = math.random( 50, 200 )        
+
+    --- Create a route point of type air.
+    local CoordinateFrom = Helicopter:GetCoordinate()
+    local WaypointFrom = CoordinateFrom:WaypointAir( 
+      "RADIO", 
+      POINT_VEC3.RoutePointType.TurningPoint, 
+      POINT_VEC3.RoutePointAction.TurningPoint, 
+      150, 
+      true 
+    )
+    Route[#Route+1] = WaypointFrom
+
+    --- Create a route point of type air.
+    local CoordinateTo   = Coordinate
+    local WaypointTo = CoordinateTo:WaypointAir( 
+      "RADIO", 
+      POINT_VEC3.RoutePointType.TurningPoint, 
+      POINT_VEC3.RoutePointAction.TurningPoint, 
+      150, 
+      true 
+    )
+
+    Route[#Route+1] = WaypointTo
+    
+    --- Now we're going to do something special, we're going to call a function from a waypoint action at the AIControllable...
+    Helicopter:WayPointInitialize( Route )
+  
+    local Tasks = {}
+    
+    Tasks[#Tasks+1] = Helicopter:TaskLandAtVec2( CoordinateTo:GetVec2() )
+    Route[#Route].task = Helicopter:TaskCombo( Tasks )
+
+    Route[#Route+1] = WaypointTo
+
+    -- Now route the helicopter
+    Helicopter:Route( Route, 1 )
+    
+  end
+  
+end
 
 --- **AI** -- (R2.3) - Models the intelligent transportation of infantry (cargo).
 --
@@ -70591,10 +71021,12 @@ AI_CARGO_DISPATCHER = {
 -- @map <Wrapper.Group#GROUP, AI.AI_Cargo_APC#AI_CARGO_APC>
 
 --- @field #AI_CARGO_DISPATCHER.AI_CARGO_APC 
-AI_CARGO_DISPATCHER.AICargoAPC = {}
+AI_CARGO_DISPATCHER.AI_Cargo = {}
 
 --- @field #AI_CARGO_DISPATCHER.PickupCargo
 AI_CARGO_DISPATCHER.PickupCargo = {}
+
+
 
 --- Creates a new AI_CARGO_DISPATCHER object.
 -- @param #AI_CARGO_DISPATCHER self
@@ -70608,7 +71040,7 @@ AI_CARGO_DISPATCHER.PickupCargo = {}
 -- SetAPC = SET_GROUP:New():FilterPrefixes( "APC" ):FilterStart()
 -- SetCargo = SET_CARGO:New():FilterTypes( "Infantry" ):FilterStart()
 -- SetDeployZone = SET_ZONE:New():FilterPrefixes( "Deploy" ):FilterStart()
--- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo )
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
 -- 
 function AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones )
 
@@ -70630,12 +71062,40 @@ function AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones )
   self:AddTransition( "*", "Unloading", "*" )
   self:AddTransition( "*", "Unloaded", "*" )
   
+  self:AddTransition( "*", "Home", "*" )
+  
   self.MonitorTimeInterval = 30
   self.DeployRadiusInner = 200
   self.DeployRadiusOuter = 500
   
+  self.CarrierHome = {}
+  
   return self
 end
+
+
+--- Set the home zone.
+-- When there is nothing anymore to pickup, the carriers will go to a random coordinate in this zone.
+-- They will await here new orders.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param Core.Zone#ZONE_BASE HomeZone
+-- @return #AI_CARGO_DISPATCHER
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- 
+-- -- Set the home coordinate
+-- local HomeZone = ZONE:New( "Home" )
+-- AICargoDispatcher:SetHomeZone( HomeZone )
+-- 
+function AI_CARGO_DISPATCHER:SetHomeZone( HomeZone )
+
+  self.HomeZone = HomeZone
+  
+  return self
+end
+
 
 
 --- The Start trigger event, which actually takes action at the specified time interval.
@@ -70646,60 +71106,78 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
 
   for APCGroupName, Carrier in pairs( self.SetAPC:GetSet() ) do
     local Carrier = Carrier -- Wrapper.Group#GROUP
-    local AICargoAPC = self.AICargoAPC[Carrier]
-    if not AICargoAPC then
+    local AI_Cargo = self.AI_Cargo[Carrier]
+    if not AI_Cargo then
     
       -- ok, so this APC does not have yet an AI_CARGO_APC object...
       -- let's create one and also declare the Loaded and UnLoaded handlers.
-      self.AICargoAPC[Carrier] = self:AICargo( Carrier, self.SetCargo, self.CombatRadius )
-      AICargoAPC = self.AICargoAPC[Carrier]
+      self.AI_Cargo[Carrier] = self:AICargo( Carrier, self.SetCargo, self.CombatRadius )
+      AI_Cargo = self.AI_Cargo[Carrier]
       
-      function AICargoAPC.OnAfterPickup( AICargoAPC, APC, From, Event, To, Cargo )
+      function AI_Cargo.OnAfterPickup( AI_Cargo, APC, From, Event, To, Cargo )
         self:Pickup( APC, Cargo )
       end
       
-      function AICargoAPC.OnAfterLoad( AICargoAPC, APC )
+      function AI_Cargo.OnAfterLoad( AI_Cargo, APC )
         self:Loading( APC )
       end
 
-      function AICargoAPC.OnAfterLoaded( AICargoAPC, APC, From, Event, To, Cargo )
+      function AI_Cargo.OnAfterLoaded( AI_Cargo, APC, From, Event, To, Cargo )
         self:Loaded( APC, Cargo )
       end
 
-      function AICargoAPC.OnAfterDeploy( AICargoAPC, APC )
+      function AI_Cargo.OnAfterDeploy( AI_Cargo, APC )
         self:Deploy( APC )
       end      
 
-      function AICargoAPC.OnAfterUnload( AICargoAPC, APC )
+      function AI_Cargo.OnAfterUnload( AI_Cargo, APC )
         self:Unloading( APC )
       end      
 
-      function AICargoAPC.OnAfterUnloaded( AICargoAPC, APC )
+      function AI_Cargo.OnAfterUnloaded( AI_Cargo, APC )
         self:Unloaded( APC )
       end      
     end
 
     -- The Pickup sequence ...
     -- Check if this APC need to go and Pickup something...
-    self:I( { IsTransporting = AICargoAPC:IsTransporting() } )
-    if AICargoAPC:IsTransporting() == false then
+    self:I( { IsTransporting = AI_Cargo:IsTransporting() } )
+    if AI_Cargo:IsTransporting() == false then
       -- ok, so there is a free APC
       -- now find the first cargo that is Unloaded
       
       local PickupCargo = nil
       
       for CargoName, Cargo in pairs( self.SetCargo:GetSet() ) do
+        local Cargo = Cargo -- Cargo.Cargo#CARGO
+        self:F( { Cargo = Cargo:GetName(), UnLoaded = Cargo:IsUnLoaded(), Deployed = Cargo:IsDeployed(), PickupCargo = self.PickupCargo[Cargo] ~= nil } )
         if Cargo:IsUnLoaded() and not Cargo:IsDeployed() then
-          if not self.PickupCargo[Cargo] then
-            self.PickupCargo[Cargo] = Carrier
+          local CargoVec2 = { x = Cargo:GetX(), y = Cargo:GetY() }
+          local LocationFound = false
+          for APC, Vec2 in pairs( self.PickupCargo ) do
+            if Vec2.x == CargoVec2.x and Vec2.y == CargoVec2.y then
+              LocationFound = true
+              break
+            end
+          end
+          if LocationFound == false then
+            self.PickupCargo[Carrier] = CargoVec2
             PickupCargo = Cargo
             break
           end
         end
       end
       if PickupCargo then
-        AICargoAPC:Pickup( PickupCargo:GetCoordinate():GetRandomCoordinateInRadius( 25, 50 ), 70 )
+        self.CarrierHome[Carrier] = nil
+        AI_Cargo:Pickup( PickupCargo:GetCoordinate() )
         break
+      else
+        if self.HomeZone then
+          if not self.CarrierHome[Carrier] then
+            self.CarrierHome[Carrier] = true
+            AI_Cargo:Home( self.HomeZone:GetRandomPointVec2() )
+          end
+        end
       end
     end
   end
@@ -70729,9 +71207,10 @@ function AI_CARGO_DISPATCHER:OnAfterLoaded( From, Event, To, APC, Cargo )
   local RandomZone = self.SetDeployZones:GetRandomZone()
   self:I( { RandomZone = RandomZone } )
   
-  self.AICargoAPC[APC]:Deploy( RandomZone:GetCoordinate():GetRandomCoordinateInRadius( 25, 200 ), 70 )
-  self.PickupCargo[Cargo] = nil
-
+  self.AI_Cargo[APC]:Deploy( RandomZone:GetCoordinate(), 70 )
+  
+  self.PickupCargo[APC] = nil
+  
   return self
 end
 
