@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-11T19:56:56.0000000Z-ad7c41a2445366ce6a62bf9e1ba1c2eb34c0153f ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-12T13:45:59.0000000Z-df9c9fbeeeb67a43b77baea6359dede3d64d2943 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -8351,10 +8351,16 @@ end
 -- @param Dcs.DCSTypes#Vec3 Vec3 The point to test.
 -- @return #boolean true if the Vec3 is within the zone.
 function ZONE_BASE:IsVec3InZone( Vec3 )
-  self:F2( Vec3 )
-
   local InZone = self:IsVec2InZone( { x = Vec3.x, y = Vec3.z } )
+  return InZone
+end
 
+--- Returns if a Coordinate is within the zone.
+-- @param #ZONE_BASE self
+-- @param Core.Point#COORDINATE Coordinate The coordinate to test.
+-- @return #boolean true if the coordinate is within the zone.
+function ZONE_BASE:IsCoordinateInZone( Coordinate )
+  local InZone = self:IsVec2InZone( Coordinate:GetVec2() )
   return InZone
 end
 
@@ -8363,10 +8369,7 @@ end
 -- @param Core.Point#POINT_VEC2 PointVec2 The PointVec2 to test.
 -- @return #boolean true if the PointVec2 is within the zone.
 function ZONE_BASE:IsPointVec2InZone( PointVec2 )
-  self:F2( PointVec2 )
-  
   local InZone = self:IsVec2InZone( PointVec2:GetVec2() )
-
   return InZone
 end
 
@@ -8375,10 +8378,7 @@ end
 -- @param Core.Point#POINT_VEC3 PointVec3 The PointVec3 to test.
 -- @return #boolean true if the PointVec3 is within the zone.
 function ZONE_BASE:IsPointVec3InZone( PointVec3 )
-  self:F2( PointVec3 )
-
   local InZone = self:IsPointVec2InZone( PointVec3 )
-
   return InZone
 end
 
@@ -8387,8 +8387,6 @@ end
 -- @param #ZONE_BASE self
 -- @return #nil.
 function ZONE_BASE:GetVec2()
-  self:F2( self.ZoneName )
-
   return nil 
 end
 
@@ -54421,7 +54419,7 @@ ARTY.id="ARTY | "
 
 --- Arty script version.
 -- @field #string version
-ARTY.version="0.9.0"
+ARTY.version="0.9.1"
 
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -54561,12 +54559,13 @@ end
 -- @param #string time (Optional) Day time at which the target should be engaged. Passed as a string in format "08:13:45". Current task will be canceled.
 -- @param #number weapontype (Optional) Type of weapon to be used to attack this target. Default ARTY.WeaponType.Auto, i.e. the DCS logic automatically determins the appropriate weapon.
 -- @param #string name (Optional) Name of the target. Default is LL DMS coordinate of the target. If the name was already given, the numbering "#01", "#02",... is appended automatically.
+-- @param #boolean unique (Optional) Target is unique. If the target name is already known, the target is rejected. Default false.
 -- @return #string Name of the target. Can be used for further reference, e.g. deleting the target from the list.
 -- @usage paladin=ARTY:New(GROUP:FindByName("Blue Paladin"))
 -- paladin:AssignTargetCoord(GROUP:FindByName("Red Targets 1"):GetCoordinate(), 10, 300, 10, 1, "08:02:00", ARTY.WeaponType.Auto, "Target 1")
 -- paladin:Start()
-function ARTY:AssignTargetCoord(coord, prio, radius, nshells, maxengage, time, weapontype, name)
-  self:F({coord=coord, prio=prio, radius=radius, nshells=nshells, maxengage=maxengage, time=time, weapontype=weapontype, name=name})
+function ARTY:AssignTargetCoord(coord, prio, radius, nshells, maxengage, time, weapontype, name, unique)
+  self:F({coord=coord, prio=prio, radius=radius, nshells=nshells, maxengage=maxengage, time=time, weapontype=weapontype, name=name, unique=unique})
   
   -- Set default values.
   nshells=nshells or 5
@@ -54575,13 +54574,23 @@ function ARTY:AssignTargetCoord(coord, prio, radius, nshells, maxengage, time, w
   prio=prio or 50
   prio=math.max(  1, prio)
   prio=math.min(100, prio)
+  if unique==nil then
+    unique=false
+  end
   weapontype=weapontype or ARTY.WeaponType.Auto
   
   -- Name of the target.
   local _name=name or coord:ToStringLLDMS() 
+  local _unique=true
     
   -- Check if the name has already been used for another target. If so, the function returns a new unique name.
-  _name=self:_CheckName(self.targets, _name)
+  _name,_unique=self:_CheckName(self.targets, _name, not unique)
+  
+  -- Target name should be unique and is not.
+  if unique==true and _unique==false then
+    self:T(ARTY.id..string.format("%s: target %s should have a unique name but name was already given. Rejecting target!", self.Controllable:GetName(), _name))
+    return nil
+  end
   
   -- Time in seconds.
   local _time=self:_ClockToSeconds(time)
@@ -56121,44 +56130,71 @@ end
 
 
 
---- Check if a name is unique. If not, a new unique name is created by adding a running index #01, #02, ...
+--- Check if a name is unique. If not, a new unique name can be created by adding a running index #01, #02, ...
 -- @param #ARTY self
 -- @param #table givennames Table with entries of already given names. Must contain a .name item.
--- @param #string name Desired name.
+-- @param #string name Name to check if it already exists in givennames table.
+-- @param #boolean makeunique If true, a new unique name is returned by appending the running index.
 -- @return #string Unique name, which is not already given for another target.
-function ARTY:_CheckName(givennames, name)
+function ARTY:_CheckName(givennames, name, makeunique)
   self:F2({givennames=givennames, name=name})  
 
   local newname=name
   local counter=1
+  local n=1
+  local nmax=100
+  if makeunique==nil then
+    makeunique=true
+  end
   
-  repeat
+  repeat -- until a unique name is found.
+  
     -- We assume the name is unique.
-    local unique=true
+    local _unique=true
     
     -- Loop over all targets already defined.
     for _,_target in pairs(givennames) do
     
       -- Target name.
-      local _givenname=givennames.name
+      local _givenname=_target.name
       
+      -- Name is already used by another target.
       if _givenname==newname then
-        -- Define new name = "name #01"
-        newname=string.format("%s #%02d", name, counter)
-        
-        -- Increase counter.
-        counter=counter+1
-        
+      
         -- Name is already used for another target ==> try again with new name.
-        unique=false
-      end      
+        _unique=false
+              
+      end
+      
+      -- Debug info.
+      self:T3(ARTY.id..string.format("%d: givenname = %s, newname=%s, unique = %s, makeunique = %s", n, tostring(_givenname), newname, tostring(_unique), tostring(makeunique)))   
     end
     
-  until (unique)
+    -- Create a new name if requested and try again.
+    if _unique==false and makeunique==true then
+    
+      -- Define newname = "name #01"
+      newname=string.format("%s #%02d", name, counter)
+      
+      -- Increase counter.
+      counter=counter+1
+    end
+    
+    -- Name is not unique and we don't want to make it unique.
+    if _unique==false and makeunique==false then
+      self:T3(ARTY.id..string.format("Name %s is not unique. Return false.", tostring(newname)))
+      
+      -- Return
+      return name, false
+    end
+    
+    -- Increase loop counter. We try max 100 times.
+    n=n+1
+  until (_unique or n==nmax)
   
   -- Debug output and return new name.
-  self:T2(string.format("Original name %s, new name = %s", name, newname))
-  return newname
+  self:T3(ARTY.id..string.format("Original name %s, new name = %s", name, newname))
+  return newname, true
 end
 
 --- Check if target is in range.
@@ -69860,7 +69896,7 @@ AI_CARGO_HELICOPTER = {
   Coordinate = nil -- Core.Point#COORDINATE,
 }
 
-AI_CARGO_HELICOPTER_QUEUE = {}
+AI_CARGO_QUEUE = {}
 
 --- Creates a new AI_CARGO_HELICOPTER object.
 -- @param #AI_CARGO_HELICOPTER self
@@ -70063,43 +70099,31 @@ function AI_CARGO_HELICOPTER:onafterQueue( Helicopter, From, Event, To, Coordina
 
   local HelicopterInZone = false
 
-  --- @param Wrapper.Unit#UNIT ZoneUnit
-  local function EvaluateZone( ZoneUnit )
-  
-    if ZoneUnit:IsAlive() then
-      local ZoneUnitCategory =  ZoneUnit:GetDesc().category
-      local ZoneGroup = ZoneUnit:GetGroup()
-      if ZoneUnitCategory == Unit.Category.HELICOPTER then
-        local State =  ZoneGroup:GetState( ZoneGroup, "Landing" )
-        self:F({ZoneUnit=ZoneUnit:GetName(), State=State, UnitCategory = Unit.Category.HELICOPTER } )
-        if State == true then
-          HelicopterInZone = true
-          return false
-        end
-      end
-    end
-    
-    return true
-  end
-
   if Helicopter and Helicopter:IsAlive() then
     
     local Distance = Coordinate:DistanceFromPointVec2( Helicopter:GetCoordinate() )
     
-    if Distance > 300 then
+    if Distance > 500 then
       self:__Queue( -10, Coordinate )
     else
     
-      -- This will search the zone and will call the local function "EvaluateZone", which passes a UNIT object.
-      local Zone = ZONE_RADIUS:New( "Deploy", Coordinate:GetVec2(), 300 )
-      Zone:SearchZone( EvaluateZone )
+      local ZoneFree = true
+
+      for Helicopter, ZoneQueue in pairs( AI_CARGO_QUEUE ) do
+        local ZoneQueue = ZoneQueue -- Core.Zone#ZONE_RADIUS
+        if ZoneQueue:IsCoordinateInZone( Coordinate ) then
+          ZoneFree = false
+        end
+      end
       
-      self:F({HelicopterInZone=HelicopterInZone})
+      self:F({ZoneFree=ZoneFree})
       
-      if HelicopterInZone == false then
+      if ZoneFree == true then
      
-        Helicopter:SetState( Helicopter, "Landing", true )
-        
+        local ZoneQueue = ZONE_RADIUS:New( Helicopter:GetName(), Coordinate:GetVec2(), 100 )
+     
+        AI_CARGO_QUEUE[Helicopter] = ZoneQueue 
+      
         local Route = {}
         
 --          local CoordinateFrom = Helicopter:GetCoordinate()
@@ -70147,8 +70171,6 @@ end
 function AI_CARGO_HELICOPTER:onafterOrbit( Helicopter, From, Event, To, Coordinate )
 
   if Helicopter and Helicopter:IsAlive() then
-    
-    Helicopter:ClearState( Helicopter, "Landing" )
     
     if not self:IsTransporting() then
       local Route = {}
@@ -70274,6 +70296,7 @@ function AI_CARGO_HELICOPTER:onafterUnload( Helicopter, From, Event, To, Deploye
       local HelicopterUnit = HelicopterUnit -- Wrapper.Unit#UNIT
       for _, Cargo in pairs( HelicopterUnit:GetCargo() ) do
         Cargo:UnBoard()
+        Cargo:SetDeployed( true )
         self:__Unboard( 10, Cargo, Deployed )
       end 
     end
@@ -70321,7 +70344,6 @@ function AI_CARGO_HELICOPTER:onbeforeUnloaded( Helicopter, From, Event, To, Carg
       if Deployed == true then
         for HelicopterUnit, Cargo in pairs( self.Helicopter_Cargo ) do
           local Cargo = Cargo -- Cargo.Cargo#CARGO
-          Cargo:SetDeployed( true )
         end
         self.Helicopter_Cargo = {}
       end
@@ -70338,7 +70360,9 @@ end
 -- @param Wrapper.Group#GROUP Helicopter
 function AI_CARGO_HELICOPTER:onafterUnloaded( Helicopter, From, Event, To, Cargo, Deployed )
 
-   self:Orbit( Helicopter:GetCoordinate(), 50 )
+  self:Orbit( Helicopter:GetCoordinate(), 50 )
+
+  AI_CARGO_QUEUE[Helicopter] = nil
 
 end
 
@@ -70353,7 +70377,6 @@ function AI_CARGO_HELICOPTER:onafterPickup( Helicopter, From, Event, To, Coordin
 
   if Helicopter and Helicopter:IsAlive() ~= nil then
 
-    self:ScheduleOnce( 10, Helicopter.ClearState, Helicopter, Helicopter, "Landing" )
     Helicopter:Activate()
 
     self.RoutePickup = true
@@ -70528,7 +70551,7 @@ function AI_CARGO_HELICOPTER:onafterHome( Helicopter, From, Event, To, Coordinat
     Route[#Route+1] = WaypointTo
 
     -- Now route the helicopter
-    Helicopter:Route( Route, 1 )
+    Helicopter:Route( Route, 0 )
     
   end
   
@@ -71097,6 +71120,125 @@ function AI_CARGO_DISPATCHER:SetHomeZone( HomeZone )
 end
 
 
+--- Sets or randomizes the pickup location for the carrier around the cargo coordinate in a radius defined an outer and optional inner radius.
+-- This radius is influencing the location where the carrier will land to pickup the cargo.
+-- There are two aspects that are very important to remember and take into account:
+-- 
+--   - Ensure that the outer and inner radius are within reporting radius set by the cargo.
+--     For example, if the cargo has a reporting radius of 400 meters, and the outer and inner radius is set to 500 and 450 respectively, 
+--     then no cargo will be loaded!!!
+--   - Also take care of the potential cargo position and possible reasons to crash the carrier. This is especially important
+--     for locations which are crowded with other objects, like in the middle of villages or cities.
+--     So, for the best operation of cargo operations, always ensure that the cargo is located at open spaces.
+-- 
+-- The default radius is 0, so the center. In case of a polygon zone, a random location will be selected as the center in the zone.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #number OuterRadius The outer radius in meters around the cargo coordinate.
+-- @param #number InnerRadius (optional) The inner radius in meters around the cargo coordinate.
+-- @return #AI_CARGO_DISPATCHER
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- 
+-- -- Set the carrier to land within a band around the cargo coordinate between 500 and 300 meters!
+-- AICargoDispatcher:SetPickupRadius( 500, 300 )
+-- 
+function AI_CARGO_DISPATCHER:SetPickupRadius( OuterRadius, InnerRadius )
+
+  OuterRadius = OuterRadius or 0
+  InnerRadius = InnerRadius or OuterRadius
+
+  self.PickupOuterRadius = OuterRadius
+  self.PickupInnerRadius = InnerRadius
+  
+  return self
+end
+
+
+--- Set the speed or randomizes the speed in km/h to pickup the cargo.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #number MaxSpeed (optional) The maximum speed to move to the cargo pickup location.
+-- @param #number MinSpeed The minimum speed to move to the cargo pickup location.
+-- @return #AI_CARGO_DISPATCHER
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- 
+-- -- Set the minimum pickup speed to be 100 km/h and the maximum speed to be 200 km/h.
+-- AICargoDispatcher:SetPickupSpeed( 200, 100 )
+-- 
+function AI_CARGO_DISPATCHER:SetPickupSpeed( MaxSpeed, MinSpeed )
+
+  MaxSpeed = MaxSpeed or 999
+  MinSpeed = MinSpeed or MaxSpeed
+
+  self.PickupMinSpeed = MinSpeed
+  self.PickupMaxSpeed = MaxSpeed
+  
+  return self
+end
+
+
+--- Sets or randomizes the deploy location for the carrier around the cargo coordinate in a radius defined an outer and an optional inner radius.
+-- This radius is influencing the location where the carrier will land to deploy the cargo.
+-- There is an aspect that is very important to remember and take into account:
+-- 
+--   - Take care of the potential cargo position and possible reasons to crash the carrier. This is especially important
+--     for locations which are crowded with other objects, like in the middle of villages or cities.
+--     So, for the best operation of cargo operations, always ensure that the cargo is located at open spaces.
+-- 
+-- The default radius is 0, so the center. In case of a polygon zone, a random location will be selected as the center in the zone.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #number OuterRadius The outer radius in meters around the cargo coordinate.
+-- @param #number InnerRadius (optional) The inner radius in meters around the cargo coordinate.
+-- @return #AI_CARGO_DISPATCHER
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- 
+-- -- Set the carrier to land within a band around the cargo coordinate between 500 and 300 meters!
+-- AICargoDispatcher:SetDeployRadius( 500, 300 )
+-- 
+function AI_CARGO_DISPATCHER:SetDeployRadius( OuterRadius, InnerRadius )
+
+  OuterRadius = OuterRadius or 0
+  InnerRadius = InnerRadius or OuterRadius
+
+  self.DeployOuterRadius = OuterRadius
+  self.DeployInnerRadius = InnerRadius
+  
+  return self
+end
+
+
+--- Sets or randomizes the speed in km/h to deploy the cargo.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #number MaxSpeed The maximum speed to move to the cargo deploy location.
+-- @param #number MinSpeed (optional) The minimum speed to move to the cargo deploy location.
+-- @return #AI_CARGO_DISPATCHER
+-- @usage
+-- 
+-- -- Create a new cargo dispatcher
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- 
+-- -- Set the minimum deploy speed to be 100 km/h and the maximum speed to be 200 km/h.
+-- AICargoDispatcher:SetDeploySpeed( 200, 100 )
+-- 
+function AI_CARGO_DISPATCHER:SetDeploySpeed( MaxSpeed, MinSpeed )
+
+  MaxSpeed = MaxSpeed or 999
+  MinSpeed = MinSpeed or MaxSpeed
+
+  self.DeployMinSpeed = MinSpeed
+  self.DeployMaxSpeed = MaxSpeed
+  
+  return self
+end
+
+
 
 --- The Start trigger event, which actually takes action at the specified time interval.
 -- @param #AI_CARGO_DISPATCHER self
@@ -71152,16 +71294,16 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
         local Cargo = Cargo -- Cargo.Cargo#CARGO
         self:F( { Cargo = Cargo:GetName(), UnLoaded = Cargo:IsUnLoaded(), Deployed = Cargo:IsDeployed(), PickupCargo = self.PickupCargo[Cargo] ~= nil } )
         if Cargo:IsUnLoaded() and not Cargo:IsDeployed() then
-          local CargoVec2 = { x = Cargo:GetX(), y = Cargo:GetY() }
-          local LocationFound = false
-          for APC, Vec2 in pairs( self.PickupCargo ) do
-            if Vec2.x == CargoVec2.x and Vec2.y == CargoVec2.y then
-              LocationFound = true
+          local CargoCoordinate = Cargo:GetCoordinate()
+          local CoordinateFree = true
+          for APC, Coordinate in pairs( self.PickupCargo ) do
+            if CargoCoordinate:Get2DDistance( Coordinate ) <= 25 then
+              CoordinateFree = false
               break
             end
           end
-          if LocationFound == false then
-            self.PickupCargo[Carrier] = CargoVec2
+          if CoordinateFree == true then
+            self.PickupCargo[Carrier] = CargoCoordinate
             PickupCargo = Cargo
             break
           end
@@ -71169,13 +71311,14 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
       end
       if PickupCargo then
         self.CarrierHome[Carrier] = nil
-        AI_Cargo:Pickup( PickupCargo:GetCoordinate() )
+        local PickupCoordinate = PickupCargo:GetCoordinate():GetRandomCoordinateInRadius( self.PickupOuterRadius, self.PickupInnerRadius )
+        AI_Cargo:Pickup( PickupCoordinate, math.random( self.PickupMinSpeed, self.PickupMaxSpeed ) )
         break
       else
         if self.HomeZone then
           if not self.CarrierHome[Carrier] then
             self.CarrierHome[Carrier] = true
-            AI_Cargo:Home( self.HomeZone:GetRandomPointVec2() )
+            AI_Cargo:__Home( 10, self.HomeZone:GetRandomPointVec2() )
           end
         end
       end
@@ -71204,10 +71347,11 @@ end
 function AI_CARGO_DISPATCHER:OnAfterLoaded( From, Event, To, APC, Cargo )
 
   self:I( { "Loaded Dispatcher", APC } )
-  local RandomZone = self.SetDeployZones:GetRandomZone()
-  self:I( { RandomZone = RandomZone } )
+  local DeployZone = self.SetDeployZones:GetRandomZone()
+  self:I( { RandomZone = DeployZone } )
   
-  self.AI_Cargo[APC]:Deploy( RandomZone:GetCoordinate(), 70 )
+  local DeployCoordinate = DeployZone:GetCoordinate():GetRandomCoordinateInRadius( self.DeployOuterRadius, self.DeployInnerRadius )
+  self.AI_Cargo[APC]:Deploy( DeployCoordinate, math.random( self.DeployMinSpeed, self.DeployMaxSpeed ) )
   
   self.PickupCargo[APC] = nil
   
@@ -71269,6 +71413,11 @@ function AI_CARGO_DISPATCHER_APC:New( SetAPC, SetCargo, SetDeployZones )
 
   self.CombatRadius = 500
 
+  self:SetDeploySpeed( 70, 120 )
+  self:SetPickupSpeed( 70, 120 )
+  self:SetPickupRadius( 0, 0 )
+  self:SetDeployRadius( 0, 0 )
+
   self:Monitor( 1 )
 
   return self
@@ -71328,6 +71477,11 @@ AI_CARGO_DISPATCHER_HELICOPTER = {
 function AI_CARGO_DISPATCHER_HELICOPTER:New( SetHelicopter, SetCargo, SetDeployZones )
 
   local self = BASE:Inherit( self, AI_CARGO_DISPATCHER:New( SetHelicopter, SetCargo, SetDeployZones ) ) -- #AI_CARGO_DISPATCHER_HELICOPTER
+
+  self:SetDeploySpeed( 200, 150 )
+  self:SetPickupSpeed( 200, 150 )
+  self:SetPickupRadius( 0, 0 )
+  self:SetDeployRadius( 0, 0 )
 
   self:Monitor( 1 )
 
