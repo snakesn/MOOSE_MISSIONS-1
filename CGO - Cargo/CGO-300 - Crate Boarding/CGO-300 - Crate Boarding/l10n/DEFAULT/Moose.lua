@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-12T13:45:59.0000000Z-df9c9fbeeeb67a43b77baea6359dede3d64d2943 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-13T16:38:07.0000000Z-d99e1a74a7e970155fe4308adce91d3fe82775b1 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -70491,7 +70491,7 @@ function AI_CARGO_HELICOPTER:onafterDeploy( Helicopter, From, Event, To, Coordin
     Route[#Route+1] = WaypointTo
 
     -- Now route the helicopter
-    Helicopter:Route( Route, 1 )
+    Helicopter:Route( Route, 0 )
     
   end
   
@@ -71318,7 +71318,7 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
         if self.HomeZone then
           if not self.CarrierHome[Carrier] then
             self.CarrierHome[Carrier] = true
-            AI_Cargo:__Home( 10, self.HomeZone:GetRandomPointVec2() )
+            AI_Cargo:__Home( 60, self.HomeZone:GetRandomPointVec2() )
           end
         end
       end
