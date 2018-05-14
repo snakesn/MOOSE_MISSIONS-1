@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-13T16:38:07.0000000Z-d99e1a74a7e970155fe4308adce91d3fe82775b1 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-14T04:54:48.0000000Z-0ce10d90ee7ae59b6194fc422de5349166a55c98 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -5188,6 +5188,8 @@ EVENT = {
 
 world.event.S_EVENT_NEW_CARGO = world.event.S_EVENT_MAX + 1000
 world.event.S_EVENT_DELETE_CARGO = world.event.S_EVENT_MAX + 1001
+world.event.S_EVENT_NEW_ZONE = world.event.S_EVENT_MAX + 1002
+world.event.S_EVENT_DELETE_ZONE = world.event.S_EVENT_MAX + 1003
 
 --- The different types of events supported by MOOSE.
 -- Use this structure to subscribe to events using the @{Base#BASE.HandleEvent}() method.
@@ -5218,6 +5220,8 @@ EVENTS = {
   ShootingEnd =       world.event.S_EVENT_SHOOTING_END,
   NewCargo =          world.event.S_EVENT_NEW_CARGO,
   DeleteCargo =       world.event.S_EVENT_DELETE_CARGO,
+  NewZone =           world.event.S_EVENT_NEW_ZONE,
+  DeleteZone =        world.event.S_EVENT_DELETE_ZONE,
 }
 
 --- The Event structure
@@ -5414,6 +5418,16 @@ local _EVENTMETA = {
      Order = 1,
      Event = "OnEventDeleteCargo",
      Text = "S_EVENT_DELETE_CARGO" 
+   },
+   [EVENTS.NewZone] = {
+     Order = 1,
+     Event = "OnEventNewZone",
+     Text = "S_EVENT_NEW_ZONE" 
+   },
+   [EVENTS.DeleteZone] = {
+     Order = 1,
+     Event = "OnEventDeleteZone",
+     Text = "S_EVENT_DELETE_ZONE" 
    },
 }
 
@@ -5719,6 +5733,36 @@ do -- Event Creation
     world.onEvent( Event )
   end
 
+  --- Creation of a New Zone Event.
+  -- @param #EVENT self
+  -- @param Core.Zone#ZONE_BASE Zone The Zone created.
+  function EVENT:CreateEventNewZone( Zone )
+    self:F( { Zone } )
+  
+    local Event = {
+      id = EVENTS.NewZone,
+      time = timer.getTime(),
+      zone = Zone,
+      }
+  
+    world.onEvent( Event )
+  end
+
+  --- Creation of a Zone Deletion Event.
+  -- @param #EVENT self
+  -- @param Core.Zone#ZONE_BASE Zone The Zone created.
+  function EVENT:CreateEventDeleteZone( Zone )
+    self:F( { Zone } )
+  
+    local Event = {
+      id = EVENTS.DeleteZone,
+      time = timer.getTime(),
+      zone = Zone,
+      }
+  
+    world.onEvent( Event )
+  end
+
   --- Creation of a S_EVENT_PLAYER_ENTER_UNIT Event.
   -- @param #EVENT self
   -- @param Wrapper.Unit#UNIT PlayerUnit.
@@ -5881,6 +5925,11 @@ function EVENT:onEvent( Event )
     if Event.cargo then
       Event.Cargo = Event.cargo
       Event.CargoName = Event.cargo.Name
+    end
+
+    if Event.zone then
+      Event.Zone = Event.zone
+      Event.ZoneName = Event.zone.ZoneName
     end
     
     local PriorityOrder = EventMeta.Order
@@ -9201,6 +9250,9 @@ function ZONE_UNIT:New( ZoneName, ZoneUNIT, Radius )
   self.ZoneUNIT = ZoneUNIT
   self.LastVec2 = ZoneUNIT:GetVec2()
   
+  -- Zone objects are added to the _DATABASE and SET_ZONE objects.
+  _EVENTDISPATCHER:CreateEventNewZone( self )
+  
   return self
 end
 
@@ -9289,6 +9341,9 @@ function ZONE_GROUP:New( ZoneName, ZoneGROUP, Radius )
   self:F( { ZoneName, ZoneGROUP:GetVec2(), Radius } )
 
   self._.ZoneGROUP = ZoneGROUP
+
+  -- Zone objects are added to the _DATABASE and SET_ZONE objects.
+  _EVENTDISPATCHER:CreateEventNewZone( self )
   
   return self
 end
@@ -9766,6 +9821,8 @@ function DATABASE:New()
   self:HandleEvent( EVENTS.Hit, self.AccountHits )
   self:HandleEvent( EVENTS.NewCargo )
   self:HandleEvent( EVENTS.DeleteCargo )
+  self:HandleEvent( EVENTS.NewZone )
+  self:HandleEvent( EVENTS.DeleteZone )
   
   -- Follow alive players and clients
   --self:HandleEvent( EVENTS.PlayerEnterUnit, self._EventOnPlayerEnterUnit ) -- This is not working anymore!, handling this through the birth event.
@@ -10753,6 +10810,31 @@ function DATABASE:OnEventDeleteCargo( EventData )
     self:DeleteCargo( EventData.Cargo.Name )
   end
 end
+
+
+--- Handles the OnEventNewZone event.
+-- @param #DATABASE self
+-- @param Core.Event#EVENTDATA EventData
+function DATABASE:OnEventNewZone( EventData )
+  self:F2( { EventData } )
+
+  if EventData.Zone then
+    self:AddZone( EventData.Zone )
+  end
+end
+
+
+--- Handles the OnEventDeleteZone.
+-- @param #DATABASE self
+-- @param Core.Event#EVENTDATA EventData
+function DATABASE:OnEventDeleteZone( EventData )
+  self:F2( { EventData } )
+
+  if EventData.Zone then
+    self:DeleteZone( EventData.Zone.ZoneName )
+  end
+end
+
 
 
 --- Gets the player settings
@@ -15627,6 +15709,9 @@ function SET_ZONE:FilterStart()
       end
     end
   end
+
+  self:HandleEvent( EVENTS.NewZone )
+  self:HandleEvent( EVENTS.DeleteZone )
   
   return self
 end
@@ -15697,6 +15782,44 @@ function SET_ZONE:IsIncludeObject( MZone )
   return MZoneInclude
 end
 
+--- Handles the OnEventNewZone event for the Set.
+-- @param #SET_ZONE self
+-- @param Core.Event#EVENTDATA EventData
+function SET_ZONE:OnEventNewZone( EventData ) --R2.1
+
+  self:F( { "New Zone", EventData } )
+
+  if EventData.Zone then
+    if EventData.Zone and self:IsIncludeObject( EventData.Zone ) then
+      self:Add( EventData.Zone.ZoneName , EventData.Zone  )
+    end
+  end
+end
+
+--- Handles the OnDead or OnCrash event for alive units set.
+-- @param #SET_ZONE self
+-- @param Core.Event#EVENTDATA EventData
+function SET_ZONE:OnEventDeleteZone( EventData ) --R2.1
+  self:F3( { EventData } )
+
+  if EventData.Zone then
+    local Zone = _DATABASE:FindZone( EventData.Zone.ZoneName )
+    if Zone and Zone.ZoneName then
+
+    -- When cargo was deleted, it may probably be because of an S_EVENT_DEAD.
+    -- However, in the loading logic, an S_EVENT_DEAD is also generated after a Destroy() call.
+    -- And this is a problem because it will remove all entries from the SET_ZONEs.
+    -- To prevent this from happening, the Zone object has a flag NoDestroy.
+    -- When true, the SET_ZONE won't Remove the Zone object from the set.
+    -- This flag is switched off after the event handlers have been called in the EVENT class.
+      self:F( { ZoneNoDestroy=Zone.NoDestroy } )
+      if Zone.NoDestroy then
+      else
+        self:Remove( Zone.ZoneName )
+      end
+    end
+  end
+end
 --- **Core** -- **POINT\_VEC** classes define an **extensive API** to **manage 3D points** in the simulation space.
 --
 -- ![Banner Image](..\Presentations\POINT\Dia1.JPG)
