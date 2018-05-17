@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-14T04:54:48.0000000Z-0ce10d90ee7ae59b6194fc422de5349166a55c98 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-17T06:53:06.0000000Z-00e0f0e6d6b84239f7a549b4e378c8dfbae9f47b ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -8571,7 +8571,7 @@ end
 -- @param #ZONE_BASE self
 -- @param ZoneProbability A value between 0 and 1. 0 = 0% and 1 = 100% probability.
 function ZONE_BASE:SetZoneProbability( ZoneProbability )
-  self:F2( ZoneProbability )
+  self:F( { self:GetName(), ZoneProbability = ZoneProbability } )
   
   self.ZoneProbability = ZoneProbability or 1
   return self
@@ -8590,6 +8590,27 @@ end
 -- @param #ZONE_BASE self
 -- @return #ZONE_BASE The zone is selected taking into account the randomization probability factor.
 -- @return #nil The zone is not selected taking into account the randomization probability factor.
+-- @usage
+-- 
+-- local ZoneArray = { ZONE:New( "Zone1" ), ZONE:New( "Zone2" ) }
+-- 
+-- -- We set a zone probability of 70% to the first zone and 30% to the second zone.
+-- ZoneArray[1]:SetZoneProbability( 0.5 )
+-- ZoneArray[2]:SetZoneProbability( 0.5 )
+-- 
+-- local ZoneSelected = nil
+-- 
+-- while ZoneSelected == nil do
+--   for _, Zone in pairs( ZoneArray ) do
+--     ZoneSelected = Zone:GetZoneMaybe()
+--     if ZoneSelected ~= nil then
+--       break
+--     end
+--   end
+-- end
+-- 
+-- -- The result should be that Zone1 would be more probable selected than Zone2.
+-- 
 function ZONE_BASE:GetZoneMaybe()
   self:F2()
   
@@ -11129,9 +11150,34 @@ SET_BASE = {
 function SET_BASE:New( Database )
 
   -- Inherits from BASE
-  local self = BASE:Inherit( self, BASE:New() ) -- Core.Set#SET_BASE
+  local self = BASE:Inherit( self, FSM:New() ) -- Core.Set#SET_BASE
   
   self.Database = Database
+
+  self:SetStartState( "Started" )
+  
+  --- Added Handler OnAfter for SET_BASE
+  -- @function [parent=#SET_BASE] OnAfterAdded
+  -- @param #SET_BASE self
+  -- @param #string From
+  -- @param #string Event
+  -- @param #string To
+  -- @param #string ObjectName The name of the object.
+  -- @param Object The object.
+  
+  
+  self:AddTransition( "*",  "Added", "*" )
+  
+  --- Removed Handler OnAfter for SET_BASE
+  -- @function [parent=#SET_BASE] OnAfterRemoved
+  -- @param #SET_BASE self
+  -- @param #string From
+  -- @param #string Event
+  -- @param #string To
+  -- @param #string ObjectName The name of the object.
+  -- @param Object The object.
+  
+  self:AddTransition( "*",  "Removed", "*" )
 
   self.YieldInterval = 10
   self.TimeInterval = 0.001
@@ -11201,7 +11247,8 @@ end
 --- Removes a @{Base#BASE} object from the @{Set#SET_BASE} and derived classes, based on the Object Name.
 -- @param #SET_BASE self
 -- @param #string ObjectName
-function SET_BASE:Remove( ObjectName )
+-- @param NoTriggerEvent (optional) When `true`, the :Remove() method will not trigger a **Removed** event.
+function SET_BASE:Remove( ObjectName, NoTriggerEvent )
   self:F2( { ObjectName = ObjectName } )
 
   local Object = self.Set[ObjectName]
@@ -11214,9 +11261,11 @@ function SET_BASE:Remove( ObjectName )
         break
       end
     end
-    
+    -- When NoTriggerEvent is true, then no Removed event will be triggered.
+    if not NoTriggerEvent then
+      self:Removed( ObjectName, Object )
+    end
   end
-  
 end
 
 
@@ -11230,10 +11279,12 @@ function SET_BASE:Add( ObjectName, Object )
 
   -- Ensure that the existing element is removed from the Set before a new one is inserted to the Set
   if self.Set[ObjectName] then
-    self:Remove( ObjectName )
+    self:Remove( ObjectName, true )
   end
   self.Set[ObjectName] = Object
   table.insert( self.Index, ObjectName )
+  
+  self:Added( ObjectName, Object )
 end
 
 --- Adds a @{Base#BASE} object in the @{Set#SET_BASE}, using the Object Name as the index.
@@ -11478,7 +11529,7 @@ end
 -- @param #SET_BASE self
 -- @param Core.Event#EVENTDATA Event
 function SET_BASE:_EventOnDeadOrCrash( Event )
-  self:F3( { Event } )
+  self:F( { Event } )
 
   if Event.IniDCSUnit then
     local ObjectName, Object = self:FindInDatabase( Event )
@@ -11728,6 +11779,52 @@ end
 --   * @{#SET_GROUP.ForEachGroupPartlyInZone}: Iterate the SET_GROUP and call an iterator function for each **alive** GROUP presence partly in a @{Zone}, providing the GROUP and optional parameters to the called function.
 --   * @{#SET_GROUP.ForEachGroupNotInZone}: Iterate the SET_GROUP and call an iterator function for each **alive** GROUP presence not in a @{Zone}, providing the GROUP and optional parameters to the called function.
 --
+--
+-- ## 5. SET_GROUP trigger events on the GROUP objects.
+-- 
+-- The SET is derived from the FSM class, which provides extra capabilities to track the contents of the GROUP objects in the SET_GROUP.
+-- 
+-- ### 5.1. When a GROUP object crashes or is dead, the SET_GROUP will trigger a **Dead** event.
+-- 
+-- You can handle the event using the OnBefore and OnAfter event handlers. 
+-- The event handlers need to have the paramters From, Event, To, GroupObject.
+-- The GroupObject is the GROUP object that is dead and within the SET_GROUP, and is passed as a parameter to the event handler.
+-- See the following example:
+-- 
+--        -- Create the SetCarrier SET_GROUP collection.
+--
+--        local SetHelicopter = SET_GROUP:New():FilterPrefixes( "Helicopter" ):FilterStart()
+-- 
+--        -- Put a Dead event handler on SetCarrier, to ensure that when a carrier is destroyed, that all internal parameters are reset.
+--
+--        function SetHelicopter:OnAfterDead( From, Event, To, GroupObject )
+--          self:F( { GroupObject = GroupObject:GetName() } )
+--        end
+-- 
+-- While this is a good example, there is a catch.
+-- Imageine you want to execute the code above, the the self would need to be from the object declared outside (above) the OnAfterDead method.
+-- So, the self would need to contain another object. Fortunately, this can be done, but you must use then the **`.`** notation for the method.
+-- See the modified example:
+-- 
+--        -- Now we have a constructor of the class AI_CARGO_DISPATCHER, that receives the SetHelicopter as a parameter.
+--        -- Within that constructor, we want to set an enclosed event handler OnAfterDead for SetHelicopter.
+--        -- But within the OnAfterDead method, we want to refer to the self variable of the AI_CARGO_DISPATCHER.
+-- 
+--        function AI_CARGO_DISPATCHER:New( SetCarrier, SetCargo, SetDeployZones )
+--         
+--          local self = BASE:Inherit( self, FSM:New() ) -- #AI_CARGO_DISPATCHER
+-- 
+--          -- Put a Dead event handler on SetCarrier, to ensure that when a carrier is destroyed, that all internal parameters are reset.
+--          -- Note the "." notation, and the explicit declaration of SetHelicopter, which would be using the ":" notation the implicit self variable declaration.
+--
+--          function SetHelicopter.OnAfterDead( SetHelicopter, From, Event, To, GroupObject )
+--            SetHelicopter:F( { GroupObject = GroupObject:GetName() } )
+--            self.PickupCargo[GroupObject] = nil  -- So here I clear the PickupCargo table entry of the self object AI_CARGO_DISPATCHER.
+--            self.CarrierHome[GroupObject] = nil
+--          end
+--        
+--        end
+-- 
 -- ===
 -- @field #SET_GROUP SET_GROUP 
 SET_GROUP = {
@@ -11999,7 +12096,7 @@ end
 -- @param #SET_GROUP self
 -- @param Core.Event#EVENTDATA Event
 function SET_GROUP:_EventOnDeadOrCrash( Event )
-  self:F3( { Event } )
+  self:F( { Event } )
 
   if Event.IniDCSUnit then
     local ObjectName, Object = self:FindInDatabase( Event )
@@ -12462,6 +12559,59 @@ do -- SET_UNIT
   -- 
   --   * @{#SET_UNIT.GetTypeNames}(): Retrieve the type names of the @{Unit}s in the SET, delimited by a comma.
   -- 
+  -- ## 4. SET_UNIT iterators
+  -- 
+  -- Once the filters have been defined and the SET_UNIT has been built, you can iterate the SET_UNIT with the available iterator methods.
+  -- The iterator methods will walk the SET_UNIT set, and call for each element within the set a function that you provide.
+  -- The following iterator methods are currently available within the SET_UNIT:
+  -- 
+  --   * @{#SET_UNIT.ForEachUnit}: Calls a function for each alive group it finds within the SET_UNIT.
+  --   * @{#SET_UNIT.ForEachUnitInZone}: Iterate the SET_UNIT and call an iterator function for each **alive** UNIT object presence completely in a @{Zone}, providing the UNIT object and optional parameters to the called function.
+  --   * @{#SET_UNIT.ForEachUnitNotInZone}: Iterate the SET_UNIT and call an iterator function for each **alive** UNIT object presence not in a @{Zone}, providing the UNIT object and optional parameters to the called function.
+  --
+  -- ## 5. SET_UNIT trigger events on the UNIT objects.
+  -- 
+  -- The SET is derived from the FSM class, which provides extra capabilities to track the contents of the UNIT objects in the SET_UNIT.
+  -- 
+  -- ### 5.1. When a UNIT object crashes or is dead, the SET_UNIT will trigger a **Dead** event.
+  -- 
+  -- You can handle the event using the OnBefore and OnAfter event handlers. 
+  -- The event handlers need to have the paramters From, Event, To, GroupObject.
+  -- The GroupObject is the UNIT object that is dead and within the SET_UNIT, and is passed as a parameter to the event handler.
+  -- See the following example:
+  -- 
+  --        -- Create the SetCarrier SET_UNIT collection.
+  --
+  --        local SetHelicopter = SET_UNIT:New():FilterPrefixes( "Helicopter" ):FilterStart()
+  -- 
+  --        -- Put a Dead event handler on SetCarrier, to ensure that when a carrier unit is destroyed, that all internal parameters are reset.
+  --
+  --        function SetHelicopter:OnAfterDead( From, Event, To, UnitObject )
+  --          self:F( { UnitObject = UnitObject:GetName() } )
+  --        end
+  -- 
+  -- While this is a good example, there is a catch.
+  -- Imageine you want to execute the code above, the the self would need to be from the object declared outside (above) the OnAfterDead method.
+  -- So, the self would need to contain another object. Fortunately, this can be done, but you must use then the **`.`** notation for the method.
+  -- See the modified example:
+  -- 
+  --        -- Now we have a constructor of the class AI_CARGO_DISPATCHER, that receives the SetHelicopter as a parameter.
+  --        -- Within that constructor, we want to set an enclosed event handler OnAfterDead for SetHelicopter.
+  --        -- But within the OnAfterDead method, we want to refer to the self variable of the AI_CARGO_DISPATCHER.
+  -- 
+  --        function ACLASS:New( SetCarrier, SetCargo, SetDeployZones )
+  --         
+  --          local self = BASE:Inherit( self, FSM:New() ) -- #AI_CARGO_DISPATCHER
+  -- 
+  --          -- Put a Dead event handler on SetCarrier, to ensure that when a carrier is destroyed, that all internal parameters are reset.
+  --          -- Note the "." notation, and the explicit declaration of SetHelicopter, which would be using the ":" notation the implicit self variable declaration.
+  --
+  --          function SetHelicopter.OnAfterDead( SetHelicopter, From, Event, To, UnitObject )
+  --            SetHelicopter:F( { UnitObject = UnitObject:GetName() } )
+  --            self.array[UnitObject] = nil  -- So here I clear the array table entry of the self object ACLASS.
+  --          end
+  --        
+  --        end
   -- ===
   -- @field #SET_UNIT SET_UNIT
   SET_UNIT = {
@@ -12702,6 +12852,8 @@ do -- SET_UNIT
     
     return self
   end
+
+  
   
   --- Handles the Database to check on an event (birth) that the Object was added in the Database.
   -- This is required, because sometimes the _DATABASE birth event gets called later than the SET_BASE birth event!
@@ -15659,18 +15811,37 @@ end
 --- Get a random zone from the set.
 -- @param #SET_ZONE self
 -- @return Core.Zone#ZONE_BASE The random Zone.
+-- @return #nil if no zone in the collection.
 function SET_ZONE:GetRandomZone()
 
-  local Index = self.Index
-  local ZoneFound = nil
-  
-  while not ZoneFound do
-    local ZoneRandom = math.random( 1, #Index )
-    ZoneFound = self.Set[Index[ZoneRandom]]
-  end
+  if self:Count() ~= 0 then
 
-  return ZoneFound
+    local Index = self.Index
+    local ZoneFound = nil -- Core.Zone#ZONE_BASE
+
+    -- Loop until a zone has been found.
+    -- The :GetZoneMaybe() call will evaluate the probability for the zone to be selected.
+    -- If the zone is not selected, then nil is returned by :GetZoneMaybe() and the loop continues!  
+    while not ZoneFound do
+      local ZoneRandom = math.random( 1, #Index )
+      ZoneFound = self.Set[Index[ZoneRandom]]:GetZoneMaybe() 
+    end
+  
+    return ZoneFound
+  end
+  
+  return nil
 end
+
+
+--- Set a zone probability.
+-- @param #SET_ZONE self
+-- @param #string ZoneName The name of the zone.
+function SET_ZONE:SetZoneProbability( ZoneName, ZoneProbability )
+  local Zone = self:FindZone( ZoneName )
+  Zone:SetZoneProbability( ZoneProbability )
+end
+
 
 
 
@@ -69399,11 +69570,11 @@ AI_CARGO_APC = {
 
 --- Creates a new AI_CARGO_APC object.
 -- @param #AI_CARGO_APC self
--- @param Wrapper.Group#GROUP CargoCarrier
+-- @param Wrapper.Group#GROUP APC
 -- @param Core.Set#SET_CARGO CargoSet
 -- @param #number CombatRadius
 -- @return #AI_CARGO_APC
-function AI_CARGO_APC:New( CargoCarrier, CargoSet, CombatRadius )
+function AI_CARGO_APC:New( APC, CargoSet, CombatRadius )
 
   local self = BASE:Inherit( self, FSM_CONTROLLABLE:New() ) -- #AI_CARGO_APC
 
@@ -69506,7 +69677,8 @@ function AI_CARGO_APC:New( CargoCarrier, CargoSet, CombatRadius )
 
   self:__Monitor( 1 )
 
-  self:SetCarrier( CargoCarrier )
+
+  self:SetCarrier( APC )
   self.Transporting = false
   self.Relocating = false
   
@@ -70111,6 +70283,14 @@ function AI_CARGO_HELICOPTER:New( Helicopter, CargoSet )
   -- @param #number Delay
 
 
+  -- We need to capture the Crash events for the helicopters.
+  -- The helicopter reference is used in the semaphore AI_CARGO_QUEUEU.
+  -- So, we need to unlock this when the helo is not anymore ...
+  Helicopter:HandleEvent( EVENTS.Crash,
+    function( Helicopter, EventData )
+      AI_CARGO_QUEUE[Helicopter] = nil
+    end
+  )
 
   self:SetCarrier( Helicopter )
   
@@ -70222,7 +70402,7 @@ function AI_CARGO_HELICOPTER:onafterQueue( Helicopter, From, Event, To, Coordina
 
   local HelicopterInZone = false
 
-  if Helicopter and Helicopter:IsAlive() then
+  if Helicopter and Helicopter:IsAlive() == true then
     
     local Distance = Coordinate:DistanceFromPointVec2( Helicopter:GetCoordinate() )
     
@@ -70280,6 +70460,8 @@ function AI_CARGO_HELICOPTER:onafterQueue( Helicopter, From, Event, To, Coordina
         self:__Queue( -10, Coordinate )
       end
     end
+  else
+    AI_CARGO_QUEUE[Helicopter] = nil
   end
 end
 
@@ -71139,66 +71321,115 @@ end
 -- @module AI_Cargo_Dispatcher
 
 --- @type AI_CARGO_DISPATCHER
--- @extends Core.Fsm#FSM_CONTROLLABLE
+-- @extends Core.Fsm#FSM
 
 
---- # AI\_CARGO\_DISPATCHER class, extends @{Core.Base#BASE}
+--- # AI\_CARGO\_DISPATCHER class, extends @{Core.Fsm#FSM}
 -- 
 -- ===
 -- 
 -- AI\_CARGO\_DISPATCHER brings a dynamic cargo handling capability for AI groups.
 -- 
--- Armoured Personnel APCs (APC), Trucks, Jeeps and other carrier equipment can be mobilized to intelligently transport infantry and other cargo within the simulation.
--- The AI\_CARGO\_DISPATCHER module uses the @{Cargo} capabilities within the MOOSE framework.
+-- Carrier equipment can be mobilized to intelligently transport infantry and other cargo within the simulation.
+-- The AI\_CARGO\_DISPATCHER module uses the @{Cargo} capabilities within the MOOSE framework, to enable Carrier GROUP objects 
+-- to transport @{Cargo} towards several deploy zones.
 -- CARGO derived objects must be declared within the mission to make the AI\_CARGO\_DISPATCHER object recognize the cargo.
 -- Please consult the @{Cargo} module for more information. 
 -- 
+-- ## 1. AI\_CARGO\_DISPATCHER constructor
+--   
+--   * @{#AI_CARGO_DISPATCHER.New}(): Creates a new AI\_CARGO\_DISPATCHER object.
 -- 
+-- ## 2. AI\_CARGO\_DISPATCHER is a FSM
 -- 
+-- ![Process](..\Presentations\AI_PATROL\Dia2.JPG)
+-- 
+-- ### 2.1. AI\_CARGO\_DISPATCHER States
+-- 
+--   * **Monitoring**: The process is dispatching.
+--   * **Idle**: The process is idle.
+-- 
+-- ### 2.2. AI\_CARGO\_DISPATCHER Events
+-- 
+--   * **Monitor**: Monitor and take action.
+--   * **Start**: Start the transport process.
+--   * **Stop**: Stop the transport process.
+--   * **Pickup**: Pickup cargo.
+--   * **Load**: Load the cargo.
+--   * **Loaded**: Flag that the cargo is loaded.
+--   * **Deploy**: Deploy cargo to a location.
+--   * **Unload**: Unload the cargo.
+--   * **Unloaded**: Flag that the cargo is unloaded.
+--   * **Home**: A Carrier is going home.
+-- 
+-- ## 3. Set the pickup parameters.
+-- 
+-- Several parameters can be set to pickup cargo:
+-- 
+--    * @{#AI_CARGO_DISPATCHER.SetPickupRadius}(): Sets or randomizes the pickup location for the carrier around the cargo coordinate in a radius defined an outer and optional inner radius. 
+--    * @{#AI_CARGO_DISPATCHER.SetPickupSpeed}(): Set the speed or randomizes the speed in km/h to pickup the cargo.
+--    
+-- ## 4. Set the deploy parameters.
+-- 
+-- Several parameters can be set to deploy cargo:
+-- 
+--    * @{#AI_CARGO_DISPATCHER.SetDeployRadius}(): Sets or randomizes the deploy location for the carrier around the cargo coordinate in a radius defined an outer and an optional inner radius. 
+--    * @{#AI_CARGO_DISPATCHER.SetDeploySpeed}(): Set the speed or randomizes the speed in km/h to deploy the cargo.
+-- 
+-- ## 5. Set the home zone when there isn't any more cargo to pickup.
+-- 
+-- A home zone can be specified to where the Carriers will move when there isn't any cargo left for pickup.
+-- Use @{#AI_CARGO_DISPATCHER.SetHomeZone}() to specify the home zone.
+-- 
+-- If no home zone is specified, the carriers will wait near the deploy zone for a new pickup command.   
+-- 
+-- ===
+--   
 -- @field #AI_CARGO_DISPATCHER
 AI_CARGO_DISPATCHER = {
   ClassName = "AI_CARGO_DISPATCHER",
-  SetAPC = nil,
+  SetCarrier = nil,
   SetDeployZones = nil,
-  AI_CARGO_APC = {}
+  AI_Cargo = {},
+  PickupCargo = {}
 }
 
---- @type AI_CARGO_DISPATCHER.AI_CARGO_APC
--- @map <Wrapper.Group#GROUP, AI.AI_Cargo_APC#AI_CARGO_APC>
-
---- @field #AI_CARGO_DISPATCHER.AI_CARGO_APC 
+--- @field #AI_CARGO_DISPATCHER.AI_Cargo 
 AI_CARGO_DISPATCHER.AI_Cargo = {}
 
 --- @field #AI_CARGO_DISPATCHER.PickupCargo
 AI_CARGO_DISPATCHER.PickupCargo = {}
 
 
-
 --- Creates a new AI_CARGO_DISPATCHER object.
 -- @param #AI_CARGO_DISPATCHER self
--- @param Core.Set#SET_GROUP SetAPC
+-- @param Core.Set#SET_GROUP SetCarrier
 -- @param Core.Set#SET_CARGO SetCargo
 -- @param Core.Set#SET_ZONE SetDeployZone
 -- @return #AI_CARGO_DISPATCHER
 -- @usage
 -- 
 -- -- Create a new cargo dispatcher
--- SetAPC = SET_GROUP:New():FilterPrefixes( "APC" ):FilterStart()
+-- SetCarrier = SET_GROUP:New():FilterPrefixes( "APC" ):FilterStart()
 -- SetCargo = SET_CARGO:New():FilterTypes( "Infantry" ):FilterStart()
 -- SetDeployZone = SET_ZONE:New():FilterPrefixes( "Deploy" ):FilterStart()
--- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetCarrier, SetCargo, SetDeployZone )
 -- 
-function AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones )
+function AI_CARGO_DISPATCHER:New( SetCarrier, SetCargo, SetDeployZones )
 
   local self = BASE:Inherit( self, FSM:New() ) -- #AI_CARGO_DISPATCHER
 
-  self.SetAPC = SetAPC -- Core.Set#SET_GROUP
+  self.SetCarrier = SetCarrier -- Core.Set#SET_GROUP
   self.SetCargo = SetCargo -- Core.Set#SET_CARGO
   self.SetDeployZones = SetDeployZones -- Core.Set#SET_ZONE
 
-  self:SetStartState( "Dispatch" ) 
+  self:SetStartState( "Idle" ) 
   
-  self:AddTransition( "*", "Monitor", "*" )
+  self:AddTransition( "Monitoring", "Monitor", "Monitoring" )
+
+  self:AddTransition( "Idle", "Start", "Monitoring" )
+  self:AddTransition( "Monitoring", "Stop", "Idle" )
+  
 
   self:AddTransition( "*", "Pickup", "*" )
   self:AddTransition( "*", "Loading", "*" )
@@ -71214,7 +71445,15 @@ function AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones )
   self.DeployRadiusInner = 200
   self.DeployRadiusOuter = 500
   
+  self.PickupCargo = {}
   self.CarrierHome = {}
+  
+  -- Put a Dead event handler on SetCarrier, to ensure that when a carrier is destroyed, that all internal parameters are reset.
+  function SetCarrier.OnAfterRemoved( SetCarrier, From, Event, To, CarrierName, Carrier )
+    self:F( { Carrier = Carrier:GetName() } )
+    self.PickupCargo[Carrier] = nil
+    self.CarrierHome[Carrier] = nil
+  end
   
   return self
 end
@@ -71229,7 +71468,7 @@ end
 -- @usage
 -- 
 -- -- Create a new cargo dispatcher
--- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetCarrier, SetCargo, SetDeployZone )
 -- 
 -- -- Set the home coordinate
 -- local HomeZone = ZONE:New( "Home" )
@@ -71262,7 +71501,7 @@ end
 -- @usage
 -- 
 -- -- Create a new cargo dispatcher
--- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetCarrier, SetCargo, SetDeployZone )
 -- 
 -- -- Set the carrier to land within a band around the cargo coordinate between 500 and 300 meters!
 -- AICargoDispatcher:SetPickupRadius( 500, 300 )
@@ -71287,7 +71526,7 @@ end
 -- @usage
 -- 
 -- -- Create a new cargo dispatcher
--- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetCarrier, SetCargo, SetDeployZone )
 -- 
 -- -- Set the minimum pickup speed to be 100 km/h and the maximum speed to be 200 km/h.
 -- AICargoDispatcher:SetPickupSpeed( 200, 100 )
@@ -71320,7 +71559,7 @@ end
 -- @usage
 -- 
 -- -- Create a new cargo dispatcher
--- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetCarrier, SetCargo, SetDeployZone )
 -- 
 -- -- Set the carrier to land within a band around the cargo coordinate between 500 and 300 meters!
 -- AICargoDispatcher:SetDeployRadius( 500, 300 )
@@ -71345,7 +71584,7 @@ end
 -- @usage
 -- 
 -- -- Create a new cargo dispatcher
--- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZone )
+-- AICargoDispatcher = AI_CARGO_DISPATCHER:New( SetCarrier, SetCargo, SetDeployZone )
 -- 
 -- -- Set the minimum deploy speed to be 100 km/h and the maximum speed to be 200 km/h.
 -- AICargoDispatcher:SetDeploySpeed( 200, 100 )
@@ -71365,64 +71604,66 @@ end
 
 --- The Start trigger event, which actually takes action at the specified time interval.
 -- @param #AI_CARGO_DISPATCHER self
--- @param Wrapper.Group#GROUP APC
--- @return #AI_CARGO_DISPATCHER
 function AI_CARGO_DISPATCHER:onafterMonitor()
 
-  for APCGroupName, Carrier in pairs( self.SetAPC:GetSet() ) do
+  for CarrierGroupName, Carrier in pairs( self.SetCarrier:GetSet() ) do
     local Carrier = Carrier -- Wrapper.Group#GROUP
     local AI_Cargo = self.AI_Cargo[Carrier]
     if not AI_Cargo then
     
-      -- ok, so this APC does not have yet an AI_CARGO_APC object...
+      -- ok, so this Carrier does not have yet an AI_CARGO handling object...
       -- let's create one and also declare the Loaded and UnLoaded handlers.
       self.AI_Cargo[Carrier] = self:AICargo( Carrier, self.SetCargo, self.CombatRadius )
       AI_Cargo = self.AI_Cargo[Carrier]
       
-      function AI_Cargo.OnAfterPickup( AI_Cargo, APC, From, Event, To, Cargo )
-        self:Pickup( APC, Cargo )
+      function AI_Cargo.OnAfterPickup( AI_Cargo, Carrier, From, Event, To, Cargo )
+        self:Pickup( Carrier, Cargo )
       end
       
-      function AI_Cargo.OnAfterLoad( AI_Cargo, APC )
-        self:Loading( APC )
+      function AI_Cargo.OnAfterLoad( AI_Cargo, Carrier )
+        self:Loading( Carrier )
       end
 
-      function AI_Cargo.OnAfterLoaded( AI_Cargo, APC, From, Event, To, Cargo )
-        self:Loaded( APC, Cargo )
+      function AI_Cargo.OnAfterLoaded( AI_Cargo, Carrier, From, Event, To, Cargo )
+        self:Loaded( Carrier, Cargo )
       end
 
-      function AI_Cargo.OnAfterDeploy( AI_Cargo, APC )
-        self:Deploy( APC )
+      function AI_Cargo.OnAfterDeploy( AI_Cargo, Carrier )
+        self:Deploy( Carrier )
       end      
 
-      function AI_Cargo.OnAfterUnload( AI_Cargo, APC )
-        self:Unloading( APC )
+      function AI_Cargo.OnAfterUnload( AI_Cargo, Carrier )
+        self:Unloading( Carrier )
       end      
 
-      function AI_Cargo.OnAfterUnloaded( AI_Cargo, APC )
-        self:Unloaded( APC )
+      function AI_Cargo.OnAfterUnloaded( AI_Cargo, Carrier )
+        self:Unloaded( Carrier )
       end      
     end
 
     -- The Pickup sequence ...
-    -- Check if this APC need to go and Pickup something...
+    -- Check if this Carrier need to go and Pickup something...
     self:I( { IsTransporting = AI_Cargo:IsTransporting() } )
     if AI_Cargo:IsTransporting() == false then
-      -- ok, so there is a free APC
+      -- ok, so there is a free Carrier
       -- now find the first cargo that is Unloaded
       
       local PickupCargo = nil
       
       for CargoName, Cargo in pairs( self.SetCargo:GetSet() ) do
         local Cargo = Cargo -- Cargo.Cargo#CARGO
-        self:F( { Cargo = Cargo:GetName(), UnLoaded = Cargo:IsUnLoaded(), Deployed = Cargo:IsDeployed(), PickupCargo = self.PickupCargo[Cargo] ~= nil } )
+        self:F( { Cargo = Cargo:GetName(), UnLoaded = Cargo:IsUnLoaded(), Deployed = Cargo:IsDeployed(), PickupCargo = self.PickupCargo[Carrier] ~= nil } )
         if Cargo:IsUnLoaded() and not Cargo:IsDeployed() then
           local CargoCoordinate = Cargo:GetCoordinate()
           local CoordinateFree = true
-          for APC, Coordinate in pairs( self.PickupCargo ) do
-            if CargoCoordinate:Get2DDistance( Coordinate ) <= 25 then
-              CoordinateFree = false
-              break
+          for CarrierPickup, Coordinate in pairs( self.PickupCargo ) do
+            if CarrierPickup:IsAlive() == true then
+              if CargoCoordinate:Get2DDistance( Coordinate ) <= 25 then
+                CoordinateFree = false
+                break
+              end
+            else
+              self.PickupCargo[CarrierPickup] = nil
             end
           end
           if CoordinateFree == true then
@@ -71449,36 +71690,90 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
   end
 
   self:__Monitor( self.MonitorTimeInterval )
+end
 
-  return self
+--- Start Handler OnBefore for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] OnBeforeStart
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #string From
+-- @param #string Event
+-- @param #string To
+-- @return #boolean
+
+--- Start Handler OnAfter for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] OnAfterStart
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #string From
+-- @param #string Event
+-- @param #string To
+
+--- Start Trigger for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] Start
+-- @param #AI_CARGO_DISPATCHER self
+
+--- Start Asynchronous Trigger for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] __Start
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #number Delay
+
+function AI_CARGO_DISPATCHER:onafterStart( From, Event, To )
+  self:Monitor()
+end
+
+--- Stop Handler OnBefore for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] OnBeforeStop
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #string From
+-- @param #string Event
+-- @param #string To
+-- @return #boolean
+
+--- Stop Handler OnAfter for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] OnAfterStop
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #string From
+-- @param #string Event
+-- @param #string To
+
+--- Stop Trigger for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] Stop
+-- @param #AI_CARGO_DISPATCHER self
+
+--- Stop Asynchronous Trigger for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] __Stop
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #number Delay
+
+
+
+--- Make a Carrier run for a cargo deploy action after the cargo Pickup trigger has been initiated, by default.
+-- @param #AI_CARGO_DISPATCHER self
+-- @param From
+-- @param Event
+-- @param To
+-- @param Wrapper.Group#GROUP Carrier
+-- @param Cargo.Cargo#CARGO Cargo
+-- @return #AI_CARGO_DISPATCHER
+function AI_CARGO_DISPATCHER:OnAfterPickup( From, Event, To, Carrier, Cargo )
 end
 
 
-
---- Make a APC run for a cargo deploy action after the cargo Pickup trigger has been initiated, by default.
+--- Make a Carrier run for a cargo deploy action after the cargo has been loaded, by default.
 -- @param #AI_CARGO_DISPATCHER self
--- @param Wrapper.Group#GROUP APC
+-- @param From
+-- @param Event
+-- @param To
+-- @param Wrapper.Group#GROUP Carrier
+-- @param Cargo.Cargo#CARGO Cargo
 -- @return #AI_CARGO_DISPATCHER
-function AI_CARGO_DISPATCHER:onafterPickup( From, Event, To, APC, Cargo )
-  return self
-end
+function AI_CARGO_DISPATCHER:OnAfterLoaded( From, Event, To, Carrier, Cargo )
 
---- Make a APC run for a cargo deploy action after the cargo has been loaded, by default.
--- @param #AI_CARGO_DISPATCHER self
--- @param Wrapper.Group#GROUP APC
--- @return #AI_CARGO_DISPATCHER
-function AI_CARGO_DISPATCHER:OnAfterLoaded( From, Event, To, APC, Cargo )
-
-  self:I( { "Loaded Dispatcher", APC } )
   local DeployZone = self.SetDeployZones:GetRandomZone()
-  self:I( { RandomZone = DeployZone } )
   
   local DeployCoordinate = DeployZone:GetCoordinate():GetRandomCoordinateInRadius( self.DeployOuterRadius, self.DeployInnerRadius )
-  self.AI_Cargo[APC]:Deploy( DeployCoordinate, math.random( self.DeployMinSpeed, self.DeployMaxSpeed ) )
+  self.AI_Cargo[Carrier]:Deploy( DeployCoordinate, math.random( self.DeployMinSpeed, self.DeployMaxSpeed ) )
   
-  self.PickupCargo[APC] = nil
-  
-  return self
+  self.PickupCargo[Carrier] = nil
 end
 
 
@@ -71500,6 +71795,8 @@ end
 
 --- # AI\_CARGO\_DISPATCHER\_APC class, extends @{Core.Base#BASE}
 -- 
+-- ![Banner Image](..\Presentations\AI_CARGO_DISPATCHER_APC\Dia1.JPG)
+-- 
 -- ===
 -- 
 -- AI\_CARGO\_DISPATCHER\_APC brings a dynamic cargo handling capability for AI groups.
@@ -71509,7 +71806,54 @@ end
 -- CARGO derived objects must be declared within the mission to make the AI\_CARGO\_DISPATCHER\_APC object recognize the cargo.
 -- Please consult the @{Cargo} module for more information. 
 -- 
+-- ## 1. AI\_CARGO\_DISPATCHER\_APC constructor
+--   
+--   * @{#AI_CARGO_DISPATCHER\_APC.New}(): Creates a new AI\_CARGO\_DISPATCHER\_APC object.
 -- 
+-- ## 2. AI\_CARGO\_DISPATCHER\_APC is a FSM
+-- 
+-- ![Process](..\Presentations\AI_CARGO_DISPATCHER_APC\Dia3.JPG)
+-- 
+-- ### 2.1. AI\_CARGO\_DISPATCHER\_APC States
+-- 
+--   * **Monitoring**: The process is dispatching.
+--   * **Idle**: The process is idle.
+-- 
+-- ### 2.2. AI\_CARGO\_DISPATCHER\_APC Events
+-- 
+--   * **Monitor**: Monitor and take action.
+--   * **Start**: Start the transport process.
+--   * **Stop**: Stop the transport process.
+--   * **Pickup**: Pickup cargo.
+--   * **Load**: Load the cargo.
+--   * **Loaded**: Flag that the cargo is loaded.
+--   * **Deploy**: Deploy cargo to a location.
+--   * **Unload**: Unload the cargo.
+--   * **Unloaded**: Flag that the cargo is unloaded.
+--   * **Home**: A APC is going home.
+-- 
+-- ## 3. Set the pickup parameters.
+-- 
+-- Several parameters can be set to pickup cargo:
+-- 
+--    * @{#AI_CARGO_DISPATCHER\_APC.SetPickupRadius}(): Sets or randomizes the pickup location for the APC around the cargo coordinate in a radius defined an outer and optional inner radius. 
+--    * @{#AI_CARGO_DISPATCHER\_APC.SetPickupSpeed}(): Set the speed or randomizes the speed in km/h to pickup the cargo.
+--    
+-- ## 4. Set the deploy parameters.
+-- 
+-- Several parameters can be set to deploy cargo:
+-- 
+--    * @{#AI_CARGO_DISPATCHER\_APC.SetDeployRadius}(): Sets or randomizes the deploy location for the APC around the cargo coordinate in a radius defined an outer and an optional inner radius. 
+--    * @{#AI_CARGO_DISPATCHER\_APC.SetDeploySpeed}(): Set the speed or randomizes the speed in km/h to deploy the cargo.
+-- 
+-- ## 5. Set the home zone when there isn't any more cargo to pickup.
+-- 
+-- A home zone can be specified to where the APCs will move when there isn't any cargo left for pickup.
+-- Use @{#AI_CARGO_DISPATCHER\_APC.SetHomeZone}() to specify the home zone.
+-- 
+-- If no home zone is specified, the APCs will wait near the deploy zone for a new pickup command.   
+-- 
+-- ===
 -- 
 -- @field #AI_CARGO_DISPATCHER_APC
 AI_CARGO_DISPATCHER_APC = {
@@ -71518,30 +71862,29 @@ AI_CARGO_DISPATCHER_APC = {
 
 --- Creates a new AI_CARGO_DISPATCHER_APC object.
 -- @param #AI_CARGO_DISPATCHER_APC self
--- @param Core.Set#SET_GROUP SetAPC
--- @param Core.Set#SET_CARGO SetCargo
--- @param Core.Set#SET_ZONE SetDeployZone
+-- @param Core.Set#SET_GROUP SetAPC The collection of APC @{Group}s.
+-- @param Core.Set#SET_CARGO SetCargo The collection of @{Cargo} derived objects.
+-- @param Core.Set#SET_ZONE SetDeployZone The collection of deploy @{Zone}s, which are used to where the cargo will be deployed by the APCs. 
+-- @param #number CombatRadius The cargo will be unloaded from the APC and engage the enemy if the enemy is within CombatRadius range. The radius is in meters, the default value is 500 meters.
 -- @return #AI_CARGO_DISPATCHER_APC
 -- @usage
 -- 
--- -- Create a new cargo dispatcher
+-- -- Create a new cargo dispatcher for the set of APCs, with a combatradius of 500.
 -- SetAPC = SET_GROUP:New():FilterPrefixes( "APC" ):FilterStart()
 -- SetCargo = SET_CARGO:New():FilterTypes( "Infantry" ):FilterStart()
 -- SetDeployZone = SET_ZONE:New():FilterPrefixes( "Deploy" ):FilterStart()
--- AICargoDispatcher = AI_CARGO_DISPATCHER_APC:New( SetAPC, SetCargo )
+-- AICargoDispatcher = AI_CARGO_DISPATCHER_APC:New( SetAPC, SetCargo, SetDeployZone, 500 )
 -- 
-function AI_CARGO_DISPATCHER_APC:New( SetAPC, SetCargo, SetDeployZones )
+function AI_CARGO_DISPATCHER_APC:New( SetAPC, SetCargo, SetDeployZones, CombatRadius )
 
   local self = BASE:Inherit( self, AI_CARGO_DISPATCHER:New( SetAPC, SetCargo, SetDeployZones ) ) -- #AI_CARGO_DISPATCHER_APC
 
-  self.CombatRadius = 500
+  self.CombatRadius = CombatRadius or 500
 
   self:SetDeploySpeed( 70, 120 )
   self:SetPickupSpeed( 70, 120 )
   self:SetPickupRadius( 0, 0 )
   self:SetDeployRadius( 0, 0 )
-
-  self:Monitor( 1 )
 
   return self
 end
@@ -71552,6 +71895,8 @@ function AI_CARGO_DISPATCHER_APC:AICargo( APC, SetCargo )
   return AI_CARGO_APC:New( APC, SetCargo, self.CombatRadius )
 end
 --- **AI** -- (R2.4) - Models the intelligent transportation of infantry and other cargo using Helicopters.
+--
+-- The @{#AI_CARGO_DISPATCHER_HELICOPTER} classes implements the dynamic dispatching of cargo transportation tasks for helicopters.
 --
 -- ===
 -- 
@@ -71565,18 +71910,77 @@ end
 -- @extends AI.AI_Cargo_Dispatcher#AI_CARGO_DISPATCHER
 
 
---- # AI\_CARGO\_DISPATCHER\_HELICOPTER class, extends @{Core.Base#BASE}
+--- # AI\_CARGO\_DISPATCHER\_HELICOPTER class, extends @{AI.AI_Cargo_Dispatcher#AI_CARGO_DISPATCHER}
+-- 
+-- ![Banner Image](..\Presentations\AI_CARGO_DISPATCHER_HELICOPTER\Dia1.JPG)
 -- 
 -- ===
 -- 
--- AI\_CARGO\_DISPATCHER\_HELICOPTER brings a dynamic cargo handling capability for AI groups.
+-- AI\_CARGO\_DISPATCHER\_HELICOPTER brings a dynamic cargo handling capability for AI helicopter groups.
 -- 
 -- Helicopters can be mobilized to intelligently transport infantry and other cargo within the simulation.
 -- The AI\_CARGO\_DISPATCHER\_HELICOPTER module uses the @{Cargo} capabilities within the MOOSE framework.
 -- CARGO derived objects must be declared within the mission to make the AI\_CARGO\_DISPATCHER\_HELICOPTER object recognize the cargo.
 -- Please consult the @{Cargo} module for more information. 
 -- 
+-- ---
 -- 
+-- ## 1. AI\_CARGO\_DISPATCHER\_HELICOPTER constructor
+--   
+--   * @{#AI_CARGO_DISPATCHER\_HELICOPTER.New}(): Creates a new AI\_CARGO\_DISPATCHER\_HELICOPTER object.
+-- 
+-- ---
+-- 
+-- ## 2. AI\_CARGO\_DISPATCHER\_HELICOPTER is a FSM
+-- 
+-- ![Process](..\Presentations\AI_CARGO_DISPATCHER_HELICOPTER\Dia3.JPG)
+-- 
+-- ### 2.1. AI\_CARGO\_DISPATCHER\_HELICOPTER States
+-- 
+--   * **Monitoring**: The process is dispatching.
+--   * **Idle**: The process is idle.
+-- 
+-- ### 2.2. AI\_CARGO\_DISPATCHER\_HELICOPTER Events
+-- 
+--   * **Monitor**: Monitor and take action.
+--   * **Start**: Start the transport process.
+--   * **Stop**: Stop the transport process.
+--   * **Pickup**: Pickup cargo.
+--   * **Load**: Load the cargo.
+--   * **Loaded**: Flag that the cargo is loaded.
+--   * **Deploy**: Deploy cargo to a location.
+--   * **Unload**: Unload the cargo.
+--   * **Unloaded**: Flag that the cargo is unloaded.
+--   * **Home**: A Helicopter is going home.
+-- 
+-- ---
+-- 
+-- ## 3. Set the pickup parameters.
+-- 
+-- Several parameters can be set to pickup cargo:
+-- 
+--    * @{#AI_CARGO_DISPATCHER\_HELICOPTER.SetPickupRadius}(): Sets or randomizes the pickup location for the helicopter around the cargo coordinate in a radius defined an outer and optional inner radius. 
+--    * @{#AI_CARGO_DISPATCHER\_HELICOPTER.SetPickupSpeed}(): Set the speed or randomizes the speed in km/h to pickup the cargo.
+-- 
+-- ---   
+--    
+-- ## 4. Set the deploy parameters.
+-- 
+-- Several parameters can be set to deploy cargo:
+-- 
+--    * @{#AI_CARGO_DISPATCHER\_HELICOPTER.SetDeployRadius}(): Sets or randomizes the deploy location for the helicopter around the cargo coordinate in a radius defined an outer and an optional inner radius. 
+--    * @{#AI_CARGO_DISPATCHER\_HELICOPTER.SetDeploySpeed}(): Set the speed or randomizes the speed in km/h to deploy the cargo.
+-- 
+-- ---
+-- 
+-- ## 5. Set the home zone when there isn't any more cargo to pickup.
+-- 
+-- A home zone can be specified to where the Helicopters will move when there isn't any cargo left for pickup.
+-- Use @{#AI_CARGO_DISPATCHER\_HELICOPTER.SetHomeZone}() to specify the home zone.
+-- 
+-- If no home zone is specified, the helicopters will wait near the deploy zone for a new pickup command.   
+-- 
+-- ===
 -- 
 -- @field #AI_CARGO_DISPATCHER_HELICOPTER
 AI_CARGO_DISPATCHER_HELICOPTER = {
@@ -71585,9 +71989,9 @@ AI_CARGO_DISPATCHER_HELICOPTER = {
 
 --- Creates a new AI_CARGO_DISPATCHER_HELICOPTER object.
 -- @param #AI_CARGO_DISPATCHER_HELICOPTER self
--- @param Core.Set#SET_GROUP SetHelicopter
--- @param Core.Set#SET_CARGO SetCargo
--- @param Core.Set#SET_ZONE SetDeployZone
+-- @param Core.Set#SET_GROUP SetHelicopter The collection of Helicopter @{Group}s.
+-- @param Core.Set#SET_CARGO SetCargo The collection of @{Cargo} derived objects.
+-- @param Core.Set#SET_ZONE SetDeployZone The collection of deploy @{Zone}s, which are used to where the cargo will be deployed by the Helicopters. 
 -- @return #AI_CARGO_DISPATCHER_HELICOPTER
 -- @usage
 -- 
@@ -71605,9 +72009,7 @@ function AI_CARGO_DISPATCHER_HELICOPTER:New( SetHelicopter, SetCargo, SetDeployZ
   self:SetPickupSpeed( 200, 150 )
   self:SetPickupRadius( 0, 0 )
   self:SetDeployRadius( 0, 0 )
-
-  self:Monitor( 1 )
-
+  
   return self
 end
 
