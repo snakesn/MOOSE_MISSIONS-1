@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-17T06:53:06.0000000Z-00e0f0e6d6b84239f7a549b4e378c8dfbae9f47b ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-17T08:26:05.0000000Z-9adc7d876547f5beea8612ec46c9a6106999e4c7 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -31567,6 +31567,17 @@ do -- CARGO
     return self.Name
   end
   
+  --- Get the current active object representing or being the Cargo.
+  -- @param #CARGO self
+  -- @return Wrapper.Positionable#POSITIONABLE The object representing or being the Cargo.
+  function CARGO:GetObject()
+    if self:IsLoaded() then
+      return self.CargoCarrier
+    else
+      return self.CargoObject
+    end 
+  end
+  
   --- Get the object name of the Cargo.
   -- @param #CARGO self
   -- @return #string The object name of the Cargo.
@@ -33445,7 +33456,7 @@ do -- CARGO_GROUP
     self.CargoGroup = GROUP:NewTemplate( GroupTemplate, GroupTemplate.CoalitionID, GroupTemplate.CategoryID, GroupTemplate.CountryID)
     
     -- Now we spawn the new group based on the template created.
-    _DATABASE:Spawn( GroupTemplate )
+    self.CargoObject = _DATABASE:Spawn( GroupTemplate )
   
     self:SetWeight( WeightGroup )
     self.CargoLimit = 10
@@ -33507,7 +33518,10 @@ do -- CARGO_GROUP
           _DATABASE:Spawn( GroupTemplate )
         end
       end
+      
+      self.CargoObject = nil
     end
+    
   
   end
 
@@ -33547,12 +33561,12 @@ do -- CARGO_GROUP
       end
 
       -- Then we register the new group in the database
-      self.CargoGroup = GROUP:NewTemplate( GroupTemplate, GroupTemplate.CoalitionID, GroupTemplate.CategoryID, GroupTemplate.CountryID)
+      self.CargoGroup = GROUP:NewTemplate( GroupTemplate, GroupTemplate.CoalitionID, GroupTemplate.CategoryID, GroupTemplate.CountryID )
 
       self:F( { "Regroup", GroupTemplate } )
         
       -- Now we spawn the new group based on the template created.
-      _DATABASE:Spawn( GroupTemplate )
+      self.CargoObject = _DATABASE:Spawn( GroupTemplate )
     end
   
   end
@@ -71620,7 +71634,7 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
         self:Pickup( Carrier, Cargo )
       end
       
-      function AI_Cargo.OnAfterLoad( AI_Cargo, Carrier )
+      function AI_Cargo.OnAfterLoad( AI_Cargo, Carrier, From, Event, To, Cargo )
         self:Loading( Carrier )
       end
 
@@ -71628,16 +71642,16 @@ function AI_CARGO_DISPATCHER:onafterMonitor()
         self:Loaded( Carrier, Cargo )
       end
 
-      function AI_Cargo.OnAfterDeploy( AI_Cargo, Carrier )
-        self:Deploy( Carrier )
+      function AI_Cargo.OnAfterDeploy( AI_Cargo, Carrier, From, Event, To, Cargo )
+        self:Deploy( Carrier, Cargo )
       end      
 
-      function AI_Cargo.OnAfterUnload( AI_Cargo, Carrier )
-        self:Unloading( Carrier )
+      function AI_Cargo.OnAfterUnload( AI_Cargo, Carrier, From, Event, To, Cargo )
+        self:Unloading( Carrier, Cargo )
       end      
 
-      function AI_Cargo.OnAfterUnloaded( AI_Cargo, Carrier )
-        self:Unloaded( Carrier )
+      function AI_Cargo.OnAfterUnloaded( AI_Cargo, Carrier, From, Event, To, Cargo )
+        self:Unloaded( Carrier, Cargo )
       end      
     end
 
@@ -71717,7 +71731,7 @@ end
 -- @param #number Delay
 
 function AI_CARGO_DISPATCHER:onafterStart( From, Event, To )
-  self:Monitor()
+  self:__Monitor( -1 )
 end
 
 --- Stop Handler OnBefore for AI_CARGO_DISPATCHER
@@ -71746,16 +71760,27 @@ end
 
 
 
---- Make a Carrier run for a cargo deploy action after the cargo Pickup trigger has been initiated, by default.
+--- Loaded Handler OnAfter for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] OnAfterLoaded
 -- @param #AI_CARGO_DISPATCHER self
--- @param From
--- @param Event
--- @param To
+-- @param #string From
+-- @param #string Event
+-- @param #string To
 -- @param Wrapper.Group#GROUP Carrier
 -- @param Cargo.Cargo#CARGO Cargo
--- @return #AI_CARGO_DISPATCHER
-function AI_CARGO_DISPATCHER:OnAfterPickup( From, Event, To, Carrier, Cargo )
-end
+
+--- Unloaded Handler OnAfter for AI_CARGO_DISPATCHER
+-- @function [parent=#AI_CARGO_DISPATCHER] OnAfterUnloaded
+-- @param #AI_CARGO_DISPATCHER self
+-- @param #string From
+-- @param #string Event
+-- @param #string To
+-- @param Wrapper.Group#GROUP Carrier
+-- @param Cargo.Cargo#CARGO Cargo
+
+
+
+
 
 
 --- Make a Carrier run for a cargo deploy action after the cargo has been loaded, by default.
