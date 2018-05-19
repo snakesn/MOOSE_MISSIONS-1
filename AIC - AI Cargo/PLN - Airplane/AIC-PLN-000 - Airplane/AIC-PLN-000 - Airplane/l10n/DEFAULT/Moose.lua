@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-17T08:26:05.0000000Z-9adc7d876547f5beea8612ec46c9a6106999e4c7 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-19T04:13:45.0000000Z-27f65e41c2a04da41ad2feb5a2a9f3cf17e3a5c3 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -77288,6 +77288,48 @@ do -- TASK_MANAGER
 
     self:AddTransition( "Started", "Manage", "Started" )
 
+    self:AddTransition( "Started", "Success", "Started" )
+    
+    --- Success Handler OnAfter for TASK_MANAGER
+    -- @function [parent=#TASK_MANAGER] OnAfterSuccess
+    -- @param #TASK_MANAGER self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @param Tasking.Task#TASK Task
+    
+    
+    self:AddTransition( "Started", "Failed", "Started" )
+    
+    --- Failed Handler OnAfter for TASK_MANAGER
+    -- @function [parent=#TASK_MANAGER] OnAfterFailed
+    -- @param #TASK_MANAGER self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @param Tasking.Task#TASK Task
+    
+    
+    self:AddTransition( "Started", "Aborted", "Started" )
+    
+    --- Aborted Handler OnAfter for TASK_MANAGER
+    -- @function [parent=#TASK_MANAGER] OnAfterAborted
+    -- @param #TASK_MANAGER self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @param Tasking.Task#TASK Task
+    
+    self:AddTransition( "Started", "Cancelled", "Started" )
+    
+    --- Cancelled Handler OnAfter for TASK_MANAGER
+    -- @function [parent=#TASK_MANAGER] OnAfterCancelled
+    -- @param #TASK_MANAGER self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @param Tasking.Task#TASK Task
+
     self:SetRefreshTimeInterval( 30 )
   
     return self
@@ -77449,6 +77491,48 @@ do -- DETECTION MANAGER
     -- @function [parent=#DETECTION_MANAGER] __Stop
     -- @param #DETECTION_MANAGER self
     -- @param #number Delay
+
+    self:AddTransition( "Started", "Success", "Started" )
+    
+    --- Success Handler OnAfter for DETECTION_MANAGER
+    -- @function [parent=#DETECTION_MANAGER] OnAfterSuccess
+    -- @param #DETECTION_MANAGER self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @param Tasking.Task#TASK Task
+    
+    
+    self:AddTransition( "Started", "Failed", "Started" )
+    
+    --- Failed Handler OnAfter for DETECTION_MANAGER
+    -- @function [parent=#DETECTION_MANAGER] OnAfterFailed
+    -- @param #DETECTION_MANAGER self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @param Tasking.Task#TASK Task
+    
+    
+    self:AddTransition( "Started", "Aborted", "Started" )
+    
+    --- Aborted Handler OnAfter for DETECTION_MANAGER
+    -- @function [parent=#DETECTION_MANAGER] OnAfterAborted
+    -- @param #DETECTION_MANAGER self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @param Tasking.Task#TASK Task
+    
+    self:AddTransition( "Started", "Cancelled", "Started" )
+    
+    --- Cancelled Handler OnAfter for DETECTION_MANAGER
+    -- @function [parent=#DETECTION_MANAGER] OnAfterCancelled
+    -- @param #DETECTION_MANAGER self
+    -- @param #string From
+    -- @param #string Event
+    -- @param #string To
+    -- @param Tasking.Task#TASK Task
     
 
     self:AddTransition( "Started", "Report", "Started" )
@@ -78356,6 +78440,23 @@ do -- TASK_A2G_DISPATCHER
             Task:SetDispatcher( self )
             Task:UpdateTaskInfo( DetectedItem )
             Mission:AddTask( Task )
+            
+            function Task.OnEnterSuccess( Task, From, Event, To )
+              self:Success( Task )
+            end
+
+            function Task.onenterCancelled( Task, From, Event, To )
+              self:Cancelled( Task )
+            end
+            
+            function Task.onenterFailed( Task, From, Event, To )
+              self:Failed( Task )
+            end
+
+            function Task.onenterAborted( Task, From, Event, To )
+              self:Aborted( Task )
+            end
+            
     
             TaskReport:Add( Task:GetName() )
           else
@@ -79231,6 +79332,7 @@ do -- TASK_A2A_DISPATCHER
     self.Detection:SetRefreshTimeInterval( 30 )
     
     self:AddTransition( "Started", "Assign", "Started" )
+
     
     --- OnAfter Transition Handler for Event Assign.
     -- @function [parent=#TASK_A2A_DISPATCHER] OnAfterAssign
@@ -79241,7 +79343,7 @@ do -- TASK_A2A_DISPATCHER
     -- @param Tasking.Task_A2A#TASK_A2A Task
     -- @param Wrapper.Unit#UNIT TaskUnit
     -- @param #string PlayerName
-    
+
     self:__Start( 5 )
     
     return self
@@ -79592,6 +79694,22 @@ do -- TASK_A2A_DISPATCHER
             Task:SetTargetZone( DetectedZone, DetectedItem.Coordinate.y, DetectedItem.Coordinate.Heading )
             Task:SetDispatcher( self )
             Mission:AddTask( Task )
+
+            function Task.OnEnterSuccess( Task, From, Event, To )
+              self:Success( Task )
+            end
+
+            function Task.onenterCancelled( Task, From, Event, To )
+              self:Cancelled( Task )
+            end
+            
+            function Task.onenterFailed( Task, From, Event, To )
+              self:Failed( Task )
+            end
+
+            function Task.onenterAborted( Task, From, Event, To )
+              self:Aborted( Task )
+            end
             
             TaskReport:Add( Task:GetName() )
           else
@@ -82160,6 +82278,24 @@ do -- TASK_CARGO_DISPATCHER
           else
             Transport.Task:SetDeployZones( self.DefaultDeployZones or {} )
           end
+
+          function Transport.Task.OnEnterSuccess( Task, From, Event, To )
+            self:Success( Task )
+          end
+
+          function Transport.Task.onenterCancelled( Task, From, Event, To )
+            self:Cancelled( Task )
+          end
+          
+          function Transport.Task.onenterFailed( Task, From, Event, To )
+            self:Failed( Task )
+          end
+
+          function Transport.Task.onenterAborted( Task, From, Event, To )
+            self:Aborted( Task )
+          end
+            
+
         end
       end
       
