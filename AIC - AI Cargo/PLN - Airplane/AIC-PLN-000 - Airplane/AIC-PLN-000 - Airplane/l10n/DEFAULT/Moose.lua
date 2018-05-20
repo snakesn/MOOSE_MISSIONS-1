@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-19T04:13:45.0000000Z-27f65e41c2a04da41ad2feb5a2a9f3cf17e3a5c3 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-19T11:55:16.0000000Z-bc8fbe061ce4ece3d740c4a841ac480a3dbf5409 ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -20839,14 +20839,29 @@ end
 -- and any spaces before and after the resulting name are removed.
 -- IMPORTANT! This method MUST be the first used after :New !!!
 -- @param #SPAWN self
+-- @param #boolean KeepUnitNames (optional) If true, the unit names are kept, false or not provided to make new unit names.
 -- @return #SPAWN self
-function SPAWN:InitKeepUnitNames()
+function SPAWN:InitKeepUnitNames( KeepUnitNames )
   self:F( )
 
-  self.SpawnInitKeepUnitNames = true
+  self.SpawnInitKeepUnitNames = KeepUnitNames or true
   
   return self
 end
+
+
+--- Flags that the spawned groups must be spawned late activated. 
+-- @param #SPAWN self
+-- @param #boolean LateActivated (optional) If true, the spawned groups are late activated.
+-- @return #SPAWN self
+function SPAWN:InitLateActivated( LateActivated )
+  self:F( )
+
+  self.LateActivated = LateActivated or true
+  
+  return self
+end
+
 
 --- Defines the Heading for the new spawned units. 
 -- The heading can be given as one fixed degree, or can be randomized between minimum and maximum degrees.
@@ -22310,7 +22325,7 @@ function SPAWN:_Prepare( SpawnTemplatePrefix, SpawnIndex ) --R2.2
 	
 	SpawnTemplate.groupId = nil
 	--SpawnTemplate.lateActivation = false
-  SpawnTemplate.lateActivation = false 
+  SpawnTemplate.lateActivation = self.LateActivated or false 
 
 	if SpawnTemplate.CategoryID == Group.Category.GROUND then
 	  self:T3( "For ground units, visible needs to be false..." )
@@ -28032,6 +28047,78 @@ function GROUP:GetSize()
 
   return nil
 end
+
+
+--- Returns the average velocity Vec3 vector.
+-- @param Wrapper.Group#GROUP self
+-- @return Dcs.DCSTypes#Vec3 The velocity Vec3 vector
+-- @return #nil The GROUP is not existing or alive.  
+function GROUP:GetVelocityVec3()
+  self:F2( self.GroupName )
+
+  local DCSGroup = self:GetDCSObject()
+  
+  if DCSGroup and DCSGroup:isExist() then
+    local GroupUnits = DCSGroup:getUnits()
+    local GroupCount = #GroupUnits
+    
+    local VelocityVec3 = { x = 0, y = 0, z = 0 }
+    
+    for _, DCSUnit in pairs( GroupUnits ) do
+      local UnitVelocityVec3 = DCSUnit:getVelocity()
+      VelocityVec3.x = VelocityVec3.x + UnitVelocityVec3.x
+      VelocityVec3.y = VelocityVec3.y + UnitVelocityVec3.y
+      VelocityVec3.z = VelocityVec3.z + UnitVelocityVec3.z
+    end
+    
+    VelocityVec3.x = VelocityVec3.x / GroupCount
+    VelocityVec3.y = VelocityVec3.y / GroupCount
+    VelocityVec3.z = VelocityVec3.z / GroupCount
+    
+    return VelocityVec3
+  end
+  
+  BASE:E( { "Cannot GetVelocityVec3", Group = self, Alive = self:IsAlive() } )
+
+  return nil
+end
+
+
+--- Returns the average group height in meters.
+-- @param Wrapper.Group#GROUP self
+-- @param #boolean FromGround Measure from the ground or from sea level. Provide **true** for measuring from the ground. **false** or **nil** if you measure from sea level. 
+-- @return Dcs.DCSTypes#Vec3 The height of the group.
+-- @return #nil The GROUP is not existing or alive.  
+function GROUP:GetHeight( FromGround )
+  self:F2( self.GroupName )
+
+  local DCSGroup = self:GetDCSObject()
+  
+  if DCSGroup then
+    local GroupUnits = DCSGroup:getUnits()
+    local GroupCount = #GroupUnits
+    
+    local GroupHeight = 0
+
+    for _, DCSUnit in pairs( GroupUnits ) do
+      local GroupPosition = DCSUnit:getPosition()
+      
+      if FromGround == true then
+        local LandHeight =  land.getHeight( { GroupPosition.p.x, GroupPosition.p.z } )
+        GroupHeight = GroupHeight + ( GroupPosition.p.y - LandHeight )
+      else
+        GroupHeight = GroupHeight + GroupPosition.p.y
+      end
+    end
+    
+    return GroupHeight / GroupCount
+  end
+  
+  return nil
+end
+
+
+
 
 ---
 --- Returns the initial size of the DCS Group.
@@ -70298,11 +70385,25 @@ function AI_CARGO_HELICOPTER:New( Helicopter, CargoSet )
 
 
   -- We need to capture the Crash events for the helicopters.
-  -- The helicopter reference is used in the semaphore AI_CARGO_QUEUEU.
+  -- The helicopter reference is used in the semaphore AI_CARGO_QUEUE.
   -- So, we need to unlock this when the helo is not anymore ...
   Helicopter:HandleEvent( EVENTS.Crash,
     function( Helicopter, EventData )
       AI_CARGO_QUEUE[Helicopter] = nil
+    end
+  )
+
+  -- We need to capture the Land events for the helicopters.
+  -- The helicopter reference is used in the semaphore AI_CARGO_QUEUE.
+  -- So, we need to unlock this when the helo has landed, which can be anywhere ...
+  -- But only free the landing coordinate after 1 minute, to ensure that all helos have left.
+  Helicopter:HandleEvent( EVENTS.Land,
+    function( Helicopter, EventData )
+      self:ScheduleOnce( 60, 
+        function( Helicopter )
+          AI_CARGO_QUEUE[Helicopter] = nil
+        end, Helicopter
+      )
     end
   )
 
@@ -70352,19 +70453,6 @@ function AI_CARGO_HELICOPTER:SetCarrier( Helicopter )
     end
   end
   
-  
-  function Helicopter:OnEventHit( EventData )
-    local AICargoTroops = self:GetState( self, "AI_CARGO_HELICOPTER" )
-    if AICargoTroops then
-      self:F( { OnHitLoaded = AICargoTroops:Is( "Loaded" ) } )
-      if AICargoTroops:Is( "Loaded" ) or AICargoTroops:Is( "Boarding" ) then
-        -- There are enemies within combat range. Unload the Helicopter.
-        AICargoTroops:Unload()
-      end
-    end
-  end
-  
-  
   function Helicopter:OnEventLand( EventData )
     AICargo:Landed()
   end
@@ -70386,19 +70474,34 @@ end
 -- @param #number Speed
 function AI_CARGO_HELICOPTER:onafterLanded( Helicopter, From, Event, To )
 
+  Helicopter:F( { Name = Helicopter:GetName() } )
+
   if Helicopter and Helicopter:IsAlive() then
 
+    -- S_EVENT_LAND is directly called in two situations:
+    -- 1 - When the helo lands normally on the ground.
+    -- 2 - when the helo is hit and goes RTB or even when it is destroyed.
+    -- For point 2, this is an issue, the infantry may not unload in this case!
+    -- So we check if the helo is on the ground, and velocity< 5.
+    -- Only then the infantry can unload (and load too, for consistency)!
+
+    self:F( { Helicopter:GetName(), Height = Helicopter:GetHeight( true ), Velocity = Helicopter:GetVelocityKMH() } )
+
     if self.RoutePickup == true then
-      self:Load( Helicopter:GetPointVec2() )
-      self.RoutePickup = false
-      self.Relocating = true
+      if Helicopter:GetHeight( true ) <= 2 and Helicopter:GetVelocityKMH() < 5 then
+        self:Load( Helicopter:GetPointVec2() )
+        self.RoutePickup = false
+        self.Relocating = true
+      end
     end
     
     if self.RouteDeploy == true then
-      self:Unload( true )
-      self.RouteDeploy = false
-      self.Transporting = false
-      self.Relocating = false
+      if Helicopter:GetHeight( true ) <= 2 and Helicopter:GetVelocityKMH() < 5 then
+        self:Unload( true )
+        self.RouteDeploy = false
+        self.Transporting = false
+        self.Relocating = false
+      end
     end
      
   end
@@ -70681,7 +70784,12 @@ function AI_CARGO_HELICOPTER:onafterUnloaded( Helicopter, From, Event, To, Cargo
 
   self:Orbit( Helicopter:GetCoordinate(), 50 )
 
-  AI_CARGO_QUEUE[Helicopter] = nil
+ -- Free the coordinate zone after 30 seconds, so that the original helicopter can fly away first.
+  self:ScheduleOnce( 30, 
+    function( Helicopter )
+      AI_CARGO_QUEUE[Helicopter] = nil
+    end, Helicopter
+  )
 
 end
 
