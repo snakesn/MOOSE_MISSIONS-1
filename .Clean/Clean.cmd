@@ -8,6 +8,6 @@ git add .Clean/.
 git commit -m "Initial commit"
 
 -- push to the github remote repos ensuring you overwrite history
-git remote add origin git@github.com:FlightControl-Master/MOOSE_MISSIONS.git
+git remote add origin https://github.com/FlightControl-Master/MOOSE_MISSIONS.git
 git push -u --force origin master
 git push -u --force origin develop
