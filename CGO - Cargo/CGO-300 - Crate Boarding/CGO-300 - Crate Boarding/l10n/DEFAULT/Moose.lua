@@ -1,4 +1,4 @@
-env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-20T06:38:10.0000000Z-dd0c5fe29acc7b35d0b3d39995ee937fd2811198 ***' )
+env.info( '*** MOOSE GITHUB Commit Hash ID: 2018-05-20T07:19:49.0000000Z-7ad1d7cffef7593a65e3573907caa08a3187b53c ***' )
 env.info( '*** MOOSE STATIC INCLUDE START *** ' )
 
 --- Various routines
@@ -9226,6 +9226,30 @@ end
 -- The ZONE class, defined by the zone name as defined within the Mission Editor.
 -- This class implements the inherited functions from @{#ZONE_RADIUS} taking into account the own zone format and properties.
 -- 
+-- ## ZONE constructor
+-- 
+--   * @{#ZONE.New}(): Constructor. This will search for a trigger zone with the name given, and will return for you a ZONE object.
+--   
+-- ## Declare a ZONE directly in the DCS mission editor!
+-- 
+-- You can declare a ZONE using the DCS mission editor by adding a trigger zone in the mission editor.
+-- 
+-- Then during mission startup, when loading Moose.lua, this trigger zone will be detected as a ZONE declaration.
+-- Within the background, a ZONE object will be created within the @{Database}.
+-- The ZONE name will be the trigger zone name.
+-- 
+-- So, you can search yourself for the ZONE object by using the @{#ZONE.FindByName}() method.
+-- In this example, `local TriggerZone = ZONE:FindByName( "DefenseZone" )` would return the ZONE object
+-- that was created at mission startup, and reference it into the `TriggerZone` local object. 
+-- 
+-- Refer to mission `ZON-110` for a demonstration.
+-- 
+-- This is especially handy if you want to quickly setup a SET_ZONE...
+-- So when you would declare `local SetZone = SET_ZONE:New():FilterPrefixes( "Defense" ):FilterStart()`,
+-- then SetZone would contain the ZONE object `DefenseZone` as part of the zone collection,
+-- without much scripting overhead!!! 
+-- 
+-- 
 -- @field #ZONE 
 ZONE = {
   ClassName="ZONE",
@@ -9725,6 +9749,26 @@ end
 -- The ZONE_POLYGON class defined by a sequence of @{Group#GROUP} waypoints within the Mission Editor, forming a polygon.
 -- This class implements the inherited functions from @{Zone#ZONE_RADIUS} taking into account the own zone format and properties.
 -- 
+-- ## Declare a ZONE_POLYGON directly in the DCS mission editor!
+-- 
+-- You can declare a ZONE_POLYGON using the DCS mission editor by adding the ~ZONE_POLYGON tag in the group name.
+-- 
+-- So, imagine you have a group declared in the mission editor, with group name `DefenseZone~ZONE_POLYGON`.
+-- Then during mission startup, when loading Moose.lua, this group will be detected as a ZONE_POLYGON declaration.
+-- Within the background, a ZONE_POLYGON object will be created within the @{Database} using the properties of the group.
+-- The ZONE_POLYGON name will be the group name without the ~ZONE_POLYGON tag.
+-- 
+-- So, you can search yourself for the ZONE_POLYGON by using the @{#ZONE_POLYGON.FindByName}() method.
+-- In this example, `local PolygonZone = ZONE_POLYGON:FindByName( "DefenseZone" )` would return the ZONE_POLYGON object
+-- that was created at mission startup, and reference it into the `PolygonZone` local object.
+-- 
+-- Mission `ZON-510` shows a demonstration of this feature or method.
+-- 
+-- This is especially handy if you want to quickly setup a SET_ZONE...
+-- So when you would declare `local SetZone = SET_ZONE:New():FilterPrefixes( "Defense" ):FilterStart()`,
+-- then SetZone would contain the ZONE_POLYGON object `DefenseZone` as part of the zone collection,
+-- without much scripting overhead!!! 
+-- 
 -- @field #ZONE_POLYGON
 ZONE_POLYGON = {
   ClassName="ZONE_POLYGON",
@@ -9764,6 +9808,18 @@ function ZONE_POLYGON:NewFromGroupName( GroupName )
 
   return self
 end
+
+
+--- Find a polygon zone in the _DATABASE using the name of the polygon zone.
+-- @param #ZONE_POLYGON self
+-- @param #string ZoneName The name of the polygon zone.
+-- @return #ZONE_POLYGON self
+function ZONE_POLYGON:FindByName( ZoneName )
+  
+  local ZoneFound = _DATABASE:FindZone( ZoneName )
+  return ZoneFound
+end
+
 
 --- **Core** -- DATABASE manages the database of mission objects. 
 -- 
@@ -10056,8 +10112,37 @@ do -- Zones
   end
 
 
+  --- Private method that registers new ZONE_BASE derived objects within the DATABASE Object.
+  -- @param #DATABASE self
+  -- @return #DATABASE self
+  function DATABASE:_RegisterZones()
 
-end
+    for ZoneID, ZoneData in pairs( env.mission.triggers.zones ) do
+      local ZoneName = ZoneData.name
+
+      self:I( { "Register ZONE:", Name = ZoneName } )
+      local Zone = ZONE:New( ZoneName )
+      self.ZONENAMES[ZoneName] = ZoneName
+      self:AddZone( ZoneName, Zone )
+    end
+  
+    for ZoneGroupName, ZoneGroup in pairs( self.GROUPS ) do
+      if ZoneGroupName:match("~ZONE_POLYGON") then
+        local ZoneName1 = ZoneGroupName:match("(.*)~ZONE_POLYGON")
+        local ZoneName2 = ZoneGroupName:match(".*~ZONE_POLYGON(.*)")
+        local ZoneName = ZoneName1 .. ( ZoneName2 or "" )
+        
+        self:I( { "Register ZONE_POLYGON:", Name = ZoneName } )
+        local Zone_Polygon = ZONE_POLYGON:New( ZoneName, ZoneGroup )
+        self.ZONENAMES[ZoneName] = ZoneName
+        self:AddZone( ZoneName, Zone_Polygon )
+      end
+    end
+    
+  end
+
+
+end -- zone
 
 
 do -- cargo
@@ -10108,20 +10193,23 @@ do -- cargo
   --- Private method that registers new Static Templates within the DATABASE Object.
   -- @param #DATABASE self
   -- @return #DATABASE self
-  function DATABASE:RegisterCargos()
+  function DATABASE:_RegisterCargos()
 
   
     for CargoGroupName, CargoGroup in pairs( self.GROUPS ) do
       if self:IsCargo( CargoGroupName ) then
         local CargoInfo = CargoGroupName:match("~CARGO(.*)")
         local CargoParam = CargoInfo and CargoInfo:match( "%((.*)%)")
-        local CargoName = CargoGroupName:match("(.*)~CARGO")
+        local CargoName1 = CargoGroupName:match("(.*)~CARGO%(.*%)")
+        local CargoName2 = CargoGroupName:match(".*~CARGO%(.*%)(.*)")
+        self:E({CargoName1 = CargoName1, CargoName2 = CargoName2 })
+        local CargoName = CargoName1 .. ( CargoName2 or "" )
         local Type = CargoParam and CargoParam:match( "T=([%a%d ]+),?")
         local Name = CargoParam and CargoParam:match( "N=([%a%d]+),?") or CargoName
         local LoadRadius = CargoParam and tonumber( CargoParam:match( "RR=([%a%d]+),?") )
         local NearRadius = CargoParam and tonumber( CargoParam:match( "NR=([%a%d]+),?") )
         
-        self:F({"Register CargoGroup:",Type=Type,Name=Name,LoadRadius=LoadRadius,NearRadius=NearRadius})
+        self:I({"Register CargoGroup:",Type=Type,Name=Name,LoadRadius=LoadRadius,NearRadius=NearRadius})
         CARGO_GROUP:New( CargoGroup, Type, Name, LoadRadius, NearRadius )
       end
     end
@@ -10138,11 +10226,11 @@ do -- cargo
         local NearRadius = CargoParam and tonumber( CargoParam:match( "NR=([%a%d]+),?") )
         
         if Category == "SLING" then
-          self:F({"Register CargoSlingload:",Type=Type,Name=Name,LoadRadius=LoadRadius,NearRadius=NearRadius})
+          self:I({"Register CargoSlingload:",Type=Type,Name=Name,LoadRadius=LoadRadius,NearRadius=NearRadius})
           CARGO_SLINGLOAD:New( CargoStatic, Type, Name, LoadRadius, NearRadius )
         else
           if Category == "CRATE" then
-            self:F({"Register CargoCrate:",Type=Type,Name=Name,LoadRadius=LoadRadius,NearRadius=NearRadius})
+            self:I({"Register CargoCrate:",Type=Type,Name=Name,LoadRadius=LoadRadius,NearRadius=NearRadius})
             CARGO_CRATE:New( CargoStatic, Type, Name, LoadRadius, NearRadius )
           end
         end
@@ -10984,13 +11072,6 @@ function DATABASE:_RegisterTemplates()
       end --if coa_data.country then --there is a country table
     end --if coa_name == 'red' or coa_name == 'blue' and type(coa_data) == 'table' then
   end --for coa_name, coa_data in pairs(mission.coalition) do
-
-  for ZoneID, ZoneData in pairs( env.mission.triggers.zones ) do
-    local ZoneName = ZoneData.name
-    self.ZONENAMES[ZoneName] = ZoneName
-    self:AddZone( ZoneName, ZONE:New( ZoneName ) )
-    self:I( "Added ZONE " .. ZoneName )
-  end
 
   return self
 end
@@ -33535,7 +33616,7 @@ do -- CARGO_GROUP
     self.CargoGroup:Destroy()
 
     local GroupName = CargoGroup:GetName()
-    self.CargoName = GroupName:match("(.*)~CARGO") or GroupName
+    self.CargoName = Name
     self.CargoTemplate = UTILS.DeepCopy( _DATABASE:GetGroupTemplate( GroupName ) )
 
     local GroupTemplate = UTILS.DeepCopy( self.CargoTemplate )
@@ -82721,7 +82802,8 @@ _DATABASE = DATABASE:New() -- Core.Database#DATABASE
 _SETTINGS = SETTINGS:Set()
 _SETTINGS:SetPlayerMenuOn()
 
-_DATABASE:RegisterCargos()
+_DATABASE:_RegisterCargos()
+_DATABASE:_RegisterZones()
 
 BASE:TraceOnOff( false )
 env.info( '*** MOOSE INCLUDE END *** ' )
